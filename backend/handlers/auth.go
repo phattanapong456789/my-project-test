@@ -117,12 +117,4 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, toUserResponse(user))
 }
 
-func toUserResponse(u models.User) models.UserResponse {
-	return models.UserResponse{
-		ID:        u.ID,
-		Name:      u.Name,
-		Email:     u.Email,
-		Role:      u.Role,
-		CreatedAt: u.CreatedAt,
-	}
-}
+
