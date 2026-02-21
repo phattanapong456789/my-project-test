@@ -33,3 +33,8 @@ git remote add origin https://github.com/your-username/auth-app.git
 git push -u origin master
 ```
 "# my-project-test" 
+cd frontend
+npm run dev
+
+cd backend
+go run main.go

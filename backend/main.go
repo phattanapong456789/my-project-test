@@ -56,6 +56,7 @@ func main() {
 		protected.Use(middleware.AuthRequired())
 		{
 			protected.GET("/auth/me", auth.Me)
+			protected.PUT("/auth/change-password", auth.ChangePassword)
 		}
 
 		// Admin routes (ต้องเป็น admin เท่านั้น)

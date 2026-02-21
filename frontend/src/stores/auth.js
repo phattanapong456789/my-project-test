@@ -43,6 +43,8 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authApi.me()
       user.value = res.data
+      // อัปเดต role ใน localStorage ด้วย
+      localStorage.setItem('role', res.data.role)
     } catch {
       logout()
     }

@@ -117,4 +117,44 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, toUserResponse(user))
 }
 
+// PUT /api/auth/change-password - เปลี่ยนรหัสผ่าน
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	userID := c.GetUint("userID")
 
+	var input struct {
+		CurrentPassword string `json:"current_password" binding:"required"`
+		NewPassword     string `json:"new_password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user models.User
+	if err := h.db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// ตรวจสอบรหัสผ่านเก่า
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.CurrentPassword)); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Current password is incorrect"})
+		return
+	}
+
+	// Hash รหัสผ่านใหม่
+	hashed, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process password"})
+		return
+	}
+
+	// อัพเดตรหัสผ่าน
+	if err := h.db.Model(&user).Update("password", string(hashed)).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
+}
