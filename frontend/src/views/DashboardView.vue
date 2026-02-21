@@ -4,13 +4,18 @@
       <!-- Header -->
       <div class="dash-header">
         <div class="welcome">
-          <div class="avatar">{{ initials }}</div>
+          <div class="avatar" :class="user?.role === 'admin' ? 'avatar-admin' : ''">{{ initials }}</div>
           <div>
             <h1>สวัสดี, {{ user?.name || '...' }}! 👋</h1>
             <p>{{ user?.email }}</p>
           </div>
         </div>
-        <button @click="store.logout()" class="btn-logout">ออกจากระบบ</button>
+        <div class="header-actions">
+          <router-link v-if="user?.role === 'admin'" to="/admin" class="btn-admin">
+            ⚙️ จัดการระบบ
+          </router-link>
+          <button @click="store.logout()" class="btn-logout">ออกจากระบบ</button>
+        </div>
       </div>
 
       <!-- Info Cards -->
@@ -40,10 +45,14 @@
         </div>
 
         <div class="info-card orange">
-          <div class="info-icon">✅</div>
+          <div class="info-icon">🎭</div>
           <div>
-            <div class="info-label">สถานะ</div>
-            <div class="info-value">Active</div>
+            <div class="info-label">Role</div>
+            <div class="info-value">
+              <span class="role-badge" :class="user?.role === 'admin' ? 'role-admin' : 'role-user'">
+                {{ user?.role === 'admin' ? '👑 Admin' : '👤 User' }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -146,6 +155,20 @@ async function copyToken() {
 h1 { font-size: 1.4rem; color: #1a1a2e; }
 .welcome p { color: #888; font-size: 0.9rem; margin-top: 2px; }
 
+.header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.btn-admin {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: opacity 0.2s;
+}
+.btn-admin:hover { opacity: 0.85; }
+
 .btn-logout {
   padding: 10px 20px;
   background: #fff0f0;
@@ -157,6 +180,18 @@ h1 { font-size: 1.4rem; color: #1a1a2e; }
   transition: background 0.2s;
 }
 .btn-logout:hover { background: #fed7d7; }
+
+.avatar-admin { background: linear-gradient(135deg, #f6ad55, #ed8936) !important; }
+
+.role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.role-admin { background: #fef3c7; color: #92400e; }
+.role-user  { background: #e0e7ff; color: #3730a3; }
 
 .info-grid {
   display: grid;

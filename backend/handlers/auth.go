@@ -49,6 +49,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Name:     input.Name,
 		Email:    input.Email,
 		Password: string(hashed),
+		Role:     models.RoleUser, // default เป็น user
 	}
 
 	if err := h.db.Create(&user).Error; err != nil {
@@ -56,7 +57,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(user.ID, user.Email)
+	token, err := utils.GenerateToken(user.ID, user.Email, user.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
@@ -64,12 +65,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"token": token,
-		"user": models.UserResponse{
-			ID:        user.ID,
-			Name:      user.Name,
-			Email:     user.Email,
-			CreatedAt: user.CreatedAt,
-		},
+		"user":  toUserResponse(user),
 	})
 }
 
@@ -96,7 +92,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(user.ID, user.Email)
+	token, err := utils.GenerateToken(user.ID, user.Email, user.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
@@ -104,16 +100,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
-		"user": models.UserResponse{
-			ID:        user.ID,
-			Name:      user.Name,
-			Email:     user.Email,
-			CreatedAt: user.CreatedAt,
-		},
+		"user":  toUserResponse(user),
 	})
 }
 
-// GET /api/auth/me  (ต้อง login ก่อน)
+// GET /api/auth/me
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID := c.GetUint("userID")
 
@@ -123,10 +114,15 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, models.UserResponse{
-		ID:        user.ID,
-		Name:      user.Name,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-	})
+	c.JSON(http.StatusOK, toUserResponse(user))
+}
+
+func toUserResponse(u models.User) models.UserResponse {
+	return models.UserResponse{
+		ID:        u.ID,
+		Name:      u.Name,
+		Email:     u.Email,
+		Role:      u.Role,
+		CreatedAt: u.CreatedAt,
+	}
 }

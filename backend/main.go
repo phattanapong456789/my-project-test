@@ -43,6 +43,7 @@ func main() {
 
 	// Routes
 	auth := handlers.NewAuthHandler(db)
+	admin := handlers.NewAdminHandler(db)
 
 	api := r.Group("/api")
 	{
@@ -50,11 +51,21 @@ func main() {
 		api.POST("/auth/register", auth.Register)
 		api.POST("/auth/login", auth.Login)
 
-		// Protected routes (ต้อง login ก่อน)
+		// Protected routes (ต้อง login)
 		protected := api.Group("/")
 		protected.Use(middleware.AuthRequired())
 		{
 			protected.GET("/auth/me", auth.Me)
+		}
+
+		// Admin routes (ต้องเป็น admin เท่านั้น)
+		adminRoutes := api.Group("/admin")
+		adminRoutes.Use(middleware.AuthRequired(), middleware.AdminOnly())
+		{
+			adminRoutes.GET("/users", admin.GetUsers)
+			adminRoutes.POST("/users", admin.CreateUser)
+			adminRoutes.PUT("/users/:id/role", admin.UpdateUserRole)
+			adminRoutes.DELETE("/users/:id", admin.DeleteUser)
 		}
 	}
 

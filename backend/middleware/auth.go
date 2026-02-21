@@ -28,6 +28,7 @@ func AuthRequired() gin.HandlerFunc {
 		// เก็บ user info ไว้ใน context
 		c.Set("userID", claims.UserID)
 		c.Set("email", claims.Email)
+		c.Set("role", claims.Role)
 		c.Next()
 	}
 }
