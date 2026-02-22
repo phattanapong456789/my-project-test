@@ -6,7 +6,7 @@
       <div class="admin-header">
         <div>
           <h1>⚙️ จัดการผู้ใช้งาน</h1>
-          <p>{{ users.length }} บัญชีในระบบ</p>
+          <p>{{ users.length }} บัญชีทั้งหมด • Admin: {{ adminUsers.length }} • ผู้ใช้: {{ regularUsers.length }}</p>
         </div>
         <div class="header-actions">
           <button @click="showAddModal = true" class="btn-add">+ เพิ่ม User</button>
@@ -20,22 +20,38 @@
       <!-- Error -->
       <div v-if="error" class="alert error">⚠️ {{ error }}</div>
 
+      <!-- Tabs -->
+      <div class="tabs-header">
+        <button
+          @click="activeTab = 'admin'"
+          :class="['tab-button', { active: activeTab === 'admin' }]"
+        >
+          👑 Admin ({{ adminUsers.length }})
+        </button>
+        <button
+          @click="activeTab = 'user'"
+          :class="['tab-button', { active: activeTab === 'user' }]"
+        >
+          👤 ผู้ใช้งาน ({{ regularUsers.length }})
+        </button>
+      </div>
+
       <!-- User Table -->
       <div class="table-wrapper">
         <table>
           <thead>
             <tr>
-              <th>ID</th>
+              <th>ลำดับ</th>
               <th>ชื่อ</th>
               <th>อีเมล</th>
-              <th>Role</th>
+              <th>บทบาท</th>
               <th>สมัครเมื่อ</th>
               <th>จัดการ</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="u in users" :key="u.id">
-              <td class="td-id">#{{ u.id }}</td>
+            <tr v-for="(u, index) in displayedUsers" :key="u.id">
+              <td class="td-id">{{ index + 1 }}</td>
               <td class="td-name">
                 <div class="user-avatar">{{ u.name[0]?.toUpperCase() }}</div>
                 {{ u.name }}
@@ -55,6 +71,13 @@
                   :title="u.role === 'admin' ? 'เปลี่ยนเป็น User' : 'เปลี่ยนเป็น Admin'"
                 >
                   {{ u.role === 'admin' ? '👤' : '👑' }}
+                </button>
+                <button
+                  @click="openChangePasswordModal(u)"
+                  class="btn-password"
+                  title="เปลี่ยนรหัสผ่าน"
+                >
+                  🔐
                 </button>
                 <button
                   v-if="u.id !== currentUserID"
@@ -121,11 +144,75 @@
       </div>
     </div>
 
+    <!-- Modal ยืนยันเปลี่ยน Role -->
+    <div v-if="roleChangeTarget" class="modal-overlay" @click.self="roleChangeTarget = null">
+      <div class="modal">
+        <h2>⚠️ ยืนยันการเปลี่ยน Role</h2>
+        <p>ต้องการเปลี่ยน บทบาท ของ <strong>{{ roleChangeTarget.name }}</strong> เป็น <strong>{{ roleChangeTarget.role === 'admin' ? '👤 User' : '👑 Admin' }}</strong> ใช่หรือไม่?</p>
+        <div v-if="roleChangeError" class="alert error">⚠️ {{ roleChangeError }}</div>
+        <div v-if="roleChangeSuccess" class="alert success">✅ {{ roleChangeSuccess }}</div>
+        <div class="modal-actions">
+          <button
+            @click="roleChangeTarget = null"
+            class="btn-cancel"
+            :disabled="roleChangeLoading"
+          >
+            ยกเลิก
+          </button>
+          <button
+            @click="confirmChangeRole"
+            class="btn-confirm"
+            :disabled="roleChangeLoading"
+          >
+            {{ roleChangeLoading ? 'กำลังบันทึก...' : 'ยืนยัน' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal เปลี่ยนรหัสผ่านผู้ใช้ -->
+    <div v-if="changePasswordTarget" class="modal-overlay" @click.self="changePasswordTarget = null">
+      <div class="modal">
+        <h2>🔐 เปลี่ยนรหัสผ่าน</h2>
+        <p style="color: #666; margin-bottom: 20px;">ผู้ใช้: <strong>{{ changePasswordTarget.name }}</strong> ({{ changePasswordTarget.email }})</p>
+        <form @submit.prevent="confirmChangePassword">
+          <div class="form-group">
+            <label>รหัสผ่านใหม่</label>
+            <input
+              v-model="changePasswordForm.newPassword"
+              type="password"
+              placeholder="อย่างน้อย 6 ตัว"
+              required
+              minlength="6"
+            />
+          </div>
+          <div class="form-group">
+            <label>ยืนยันรหัสผ่าน</label>
+            <input
+              v-model="changePasswordForm.confirmPassword"
+              type="password"
+              placeholder="ยืนยันรหัสผ่าน"
+              required
+              minlength="6"
+            />
+          </div>
+          <div v-if="changePasswordError" class="alert error">⚠️ {{ changePasswordError }}</div>
+          <div v-if="changePasswordSuccess" class="alert success">✅ {{ changePasswordSuccess }}</div>
+          <div class="modal-actions">
+            <button type="button" @click="changePasswordTarget = null" class="btn-cancel">ยกเลิก</button>
+            <button type="submit" class="btn-confirm" :disabled="changePasswordLoading">
+              {{ changePasswordLoading ? 'กำลังบันทึก...' : 'ยืนยัน' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { adminApi } from '../api/auth'
 
 const users = ref([])
@@ -139,6 +226,38 @@ const addError = ref(null)
 const newUser = ref({ name: '', email: '', password: '', role: 'user' })
 
 const deleteTarget = ref(null)
+
+// สำหรับเปลี่ยน Role
+const roleChangeTarget = ref(null)
+const roleChangeError = ref('')
+const roleChangeSuccess = ref('')
+const roleChangeLoading = ref(false)
+
+// สำหรับแบ่ง tabs
+const activeTab = ref('admin')
+
+// สำหรับเปลี่ยนรหัสผ่าน
+const changePasswordTarget = ref(null)
+const changePasswordForm = ref({ newPassword: '', confirmPassword: '' })
+const changePasswordError = ref('')
+const changePasswordSuccess = ref('')
+const changePasswordLoading = ref(false)
+
+const adminUsers = computed(() => {
+  return users.value
+    .filter(u => u.role === 'admin')
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+})
+
+const regularUsers = computed(() => {
+  return users.value
+    .filter(u => u.role === 'user')
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+})
+
+const displayedUsers = computed(() => {
+  return activeTab.value === 'admin' ? adminUsers.value : regularUsers.value
+})
 
 onMounted(fetchUsers)
 
@@ -158,12 +277,34 @@ async function fetchUsers() {
 }
 
 async function toggleRole(u) {
-  const newRole = u.role === 'admin' ? 'user' : 'admin'
+  roleChangeTarget.value = u
+  roleChangeError.value = ''
+  roleChangeSuccess.value = ''
+}
+
+async function confirmChangeRole() {
+  roleChangeLoading.value = true
+  roleChangeError.value = ''
+  roleChangeSuccess.value = ''
+
   try {
-    await adminApi.updateRole(u.id, newRole)
-    u.role = newRole
+    const newRole = roleChangeTarget.value.role === 'admin' ? 'user' : 'admin'
+    const res = await adminApi.updateRole(roleChangeTarget.value.id, newRole)
+    
+    // อัพเดต user ใน list
+    const idx = users.value.findIndex(u => u.id === roleChangeTarget.value.id)
+    if (idx !== -1) {
+      users.value[idx] = res.data.user
+    }
+
+    roleChangeSuccess.value = 'เปลี่ยน บทบาท สำเร็จ'
+    setTimeout(() => {
+      roleChangeTarget.value = null
+    }, 1500)
   } catch (e) {
-    alert(e.response?.data?.error || 'เกิดข้อผิดพลาด')
+    roleChangeError.value = e.response?.data?.error || 'เกิดข้อผิดพลาด'
+  } finally {
+    roleChangeLoading.value = false
   }
 }
 
@@ -199,6 +340,38 @@ async function handleAddUser() {
 function formatDate(d) {
   if (!d) return '-'
   return new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function openChangePasswordModal(u) {
+  changePasswordTarget.value = u
+  changePasswordForm.value = { newPassword: '', confirmPassword: '' }
+  changePasswordError.value = ''
+  changePasswordSuccess.value = ''
+}
+
+async function confirmChangePassword() {
+  changePasswordError.value = ''
+  changePasswordSuccess.value = ''
+
+  // ตรวจสอบรหัสผ่านตรงกัน
+  if (changePasswordForm.value.newPassword !== changePasswordForm.value.confirmPassword) {
+    changePasswordError.value = 'รหัสผ่านไม่ตรงกัน'
+    return
+  }
+
+  changePasswordLoading.value = true
+  try {
+    await adminApi.updateUserPassword(changePasswordTarget.value.id, changePasswordForm.value.newPassword)
+
+    changePasswordSuccess.value = 'เปลี่ยนรหัสผ่านสำเร็จ'
+    setTimeout(() => {
+      changePasswordTarget.value = null
+    }, 1500)
+  } catch (e) {
+    changePasswordError.value = e.response?.data?.error || 'เกิดข้อผิดพลาด'
+  } finally {
+    changePasswordLoading.value = false
+  }
 }
 </script>
 
@@ -267,6 +440,44 @@ h1 { font-size: 1.6rem; color: #1a1a2e; }
   margin-bottom: 16px;
 }
 
+.alert.success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+/* Tabs */
+.tabs-header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #eee;
+}
+
+.tab-button {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #888;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  color: #667eea;
+}
+
+.tab-button.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+}
+
 .table-wrapper { overflow-x: auto; }
 
 table {
@@ -320,7 +531,7 @@ tr:hover td { background: #fafafa; }
 
 .td-actions { display: flex; gap: 6px; align-items: center; }
 
-.btn-role, .btn-delete {
+.btn-role, .btn-password, .btn-delete {
   background: none;
   border: 1.5px solid #eee;
   border-radius: 8px;
@@ -330,6 +541,7 @@ tr:hover td { background: #fafafa; }
   transition: background 0.2s, border-color 0.2s;
 }
 .btn-role:hover { background: #f0f4ff; border-color: #667eea; }
+.btn-password:hover { background: #f0f4ff; border-color: #667eea; }
 .btn-delete:hover { background: #fff0f0; border-color: #fed7d7; }
 
 .self-label {

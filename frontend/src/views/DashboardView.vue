@@ -11,12 +11,11 @@
           </div>
         </div>
         <div class="header-actions">
-          <button @click="showChangePasswordModal = true" class="btn-change-password" title="แก้ไขรหัสผ่าน">
-            🔐 เปลี่ยนรหัสผ่าน
-          </button>
-          <router-link v-if="user?.role === 'admin'" to="/admin" class="btn-admin">
-            ⚙️ จัดการระบบ
-          </router-link>
+          <router-link v-if="user?.role === 'admin'" to="/admin/reservations" class="btn-admin">📋 จัดการจอง</router-link>
+          <router-link v-if="user?.role === 'admin'" to="/admin" class="btn-users">👥 จัดการผู้ใช้</router-link>
+          <router-link v-if="user?.role === 'admin'" to="/admin/floor-plan" class="btn-floor">🗺️ ผังร้าน</router-link>
+          <router-link to="/booking" class="btn-booking">🍺 จองโต๊ะ</router-link>
+          <router-link to="/my-reservations" class="btn-my-res">📋 การจองของฉัน</router-link>
           <button @click="store.logout()" class="btn-logout">ออกจากระบบ</button>
         </div>
       </div>
@@ -68,88 +67,6 @@
         </div>
         <code class="token-text">{{ shortToken }}</code>
       </div>
-
-      <!-- Modal เปลี่ยนรหัสผ่าน -->
-      <div v-if="showChangePasswordModal" class="modal-overlay" @click.self="showChangePasswordModal = false">
-        <div class="modal">
-          <h2>🔐 เปลี่ยนรหัสผ่าน</h2>
-          <form @submit.prevent="validateAndShowConfirmation">
-            <div class="form-group">
-              <label>รหัสผ่านเก่า</label>
-              <input
-                v-model="changePasswordForm.currentPassword"
-                type="password"
-                placeholder="กรอกรหัสผ่านเก่า"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label>รหัสผ่านใหม่</label>
-              <input
-                v-model="changePasswordForm.newPassword"
-                type="password"
-                placeholder="อย่างน้อย 6 ตัว"
-                required
-                minlength="6"
-              />
-            </div>
-            <div class="form-group">
-              <label>ยืนยันรหัสผ่านใหม่</label>
-              <input
-                v-model="changePasswordForm.confirmPassword"
-                type="password"
-                placeholder="ยืนยันรหัสผ่านใหม่"
-                required
-                minlength="6"
-              />
-            </div>
-            <div v-if="changePasswordError" class="alert error">⚠️ {{ changePasswordError }}</div>
-            <div v-if="changePasswordSuccess" class="alert success">✅ {{ changePasswordSuccess }}</div>
-            <div class="modal-actions">
-              <button
-                type="button"
-                @click="showChangePasswordModal = false"
-                class="btn-cancel"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="submit"
-                :disabled="changePasswordLoading"
-                class="btn-confirm"
-              >
-                {{ changePasswordLoading ? 'กำลังตรวจสอบ...' : 'ถัดไป' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- Modal ยืนยันการเปลี่ยนรหัสผ่าน -->
-      <div v-if="showConfirmChangePasswordModal" class="modal-overlay" @click.self="showConfirmChangePasswordModal = false">
-        <div class="modal">
-          <h2>⚠️ ยืนยันการเปลี่ยนรหัสผ่าน</h2>
-          <p style="color: #666; margin-bottom: 20px;">
-            คุณต้องการเปลี่ยนรหัสผ่านใช่หรือไม่? การเปลี่ยนนี้จะไม่สามารถย้อนกลับได้
-          </p>
-          <div class="modal-actions">
-            <button
-              type="button"
-              @click="showConfirmChangePasswordModal = false"
-              class="btn-cancel"
-            >
-              ยกเลิก
-            </button>
-            <button
-              @click="confirmChangePassword"
-              :disabled="changePasswordLoading"
-              class="btn-confirm"
-            >
-              {{ changePasswordLoading ? 'กำลังบันทึก...' : 'ยืนยันการเปลี่ยน' }}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -163,18 +80,6 @@ import { authApi } from '../api/auth'
 const store = useAuthStore()
 const { user } = storeToRefs(store)
 const copied = ref(false)
-
-// Modal และ Form ข้อมูล
-const showChangePasswordModal = ref(false)
-const showConfirmChangePasswordModal = ref(false)
-const changePasswordForm = ref({
-  currentPassword: '',
-  newPassword: '',
-  confirmPassword: ''
-})
-const changePasswordError = ref('')
-const changePasswordSuccess = ref('')
-const changePasswordLoading = ref(false)
 
 onMounted(() => store.fetchMe())
 
@@ -200,53 +105,6 @@ async function copyToken() {
   await navigator.clipboard.writeText(token)
   copied.value = true
   setTimeout(() => copied.value = false, 2000)
-}
-
-async function validateAndShowConfirmation() {
-  changePasswordError.value = ''
-  changePasswordSuccess.value = ''
-
-  // ตรวจสอบรหัสผ่านใหม่ตรงกัน
-  if (changePasswordForm.value.newPassword !== changePasswordForm.value.confirmPassword) {
-    changePasswordError.value = 'รหัสผ่านใหม่ไม่ตรงกัน'
-    return
-  }
-
-  // ตรวจสอบว่ารหัสผ่านใหม่และเก่าต่างกัน
-  if (changePasswordForm.value.currentPassword === changePasswordForm.value.newPassword) {
-    changePasswordError.value = 'รหัสผ่านใหม่ต้องต่างจากเก่า'
-    return
-  }
-
-  // หากผ่านการตรวจสอบ แสดง confirmation modal
-  showChangePasswordModal.value = false
-  showConfirmChangePasswordModal.value = true
-}
-
-async function confirmChangePassword() {
-  changePasswordLoading.value = true
-  try {
-    await authApi.changePassword({
-      current_password: changePasswordForm.value.currentPassword,
-      new_password: changePasswordForm.value.newPassword
-    })
-
-    changePasswordSuccess.value = 'เปลี่ยนรหัสผ่านสำเร็จ'
-    setTimeout(() => {
-      showConfirmChangePasswordModal.value = false
-      changePasswordForm.value = {
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      }
-    }, 1500)
-  } catch (err) {
-    changePasswordError.value = err.response?.data?.error || 'เกิดขอ้ผิดพลาด'
-    showConfirmChangePasswordModal.value = false
-    showChangePasswordModal.value = true
-  } finally {
-    changePasswordLoading.value = false
-  }
 }
 </script>
 
@@ -314,6 +172,56 @@ h1 { font-size: 1.4rem; color: #1a1a2e; }
 }
 .btn-admin:hover { opacity: 0.85; }
 
+.btn-users {
+  padding: 10px 20px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+.btn-users:hover { background: #dcfce7; }
+
+.btn-floor {
+  padding: 10px 20px;
+  background: #f0f4ff;
+  color: #667eea;
+  border: 1.5px solid #c7d2fe;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+.btn-floor:hover { background: #e0e7ff; }
+
+.btn-booking {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #f6ad55, #ed8936);
+  color: white;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: opacity 0.2s;
+}
+.btn-booking:hover { opacity: 0.85; }
+
+.btn-my-res {
+  padding: 10px 20px;
+  background: #f0f4ff;
+  color: #667eea;
+  border: 1.5px solid #c7d2fe;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.btn-my-res:hover { background: #e0e7ff; }
+
 .btn-logout {
   padding: 10px 20px;
   background: #fff0f0;
@@ -325,19 +233,6 @@ h1 { font-size: 1.4rem; color: #1a1a2e; }
   transition: background 0.2s;
 }
 .btn-logout:hover { background: #fed7d7; }
-
-.btn-change-password {
-  padding: 10px 20px;
-  background: #f0f9ff;
-  color: #0369a1;
-  border: 1.5px solid #bae6fd;
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.9rem;
-  transition: background 0.2s;
-}
-.btn-change-password:hover { background: #e0f2fe; }
 
 .avatar-admin { background: linear-gradient(135deg, #f6ad55, #ed8936) !important; }
 

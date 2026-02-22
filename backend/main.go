@@ -14,26 +14,19 @@ import (
 )
 
 func main() {
-	// โหลด .env
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file, using system env")
 	}
-
-	// เชื่อม Database
 	db, err := database.Connect()
 	if err != nil {
 		log.Fatal("Database connection failed:", err)
 	}
 	log.Println("Connected to PostgreSQL")
 
-	// Auto-migrate สร้างตาราง users อัตโนมัติ
-	db.AutoMigrate(&models.User{})
+	db.AutoMigrate(&models.User{}, &models.Table{}, &models.FloorItem{}, &models.Reservation{})
 	log.Println("Database migrated")
 
-	// Setup Router
 	r := gin.Default()
-
-	// CORS
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
@@ -41,32 +34,53 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	// Routes
 	auth := handlers.NewAuthHandler(db)
-	admin := handlers.NewAdminHandler(db)
+	adminUser := handlers.NewAdminHandler(db)
+	reservation := handlers.NewReservationHandler(db)
+	tableAdmin := handlers.NewTableAdminHandler(db)
 
 	api := r.Group("/api")
 	{
-		// Public routes
 		api.POST("/auth/register", auth.Register)
 		api.POST("/auth/login", auth.Login)
+		api.GET("/tables", reservation.GetTables) // public: โต๊ะ + floor items + สถานะ
 
-		// Protected routes (ต้อง login)
 		protected := api.Group("/")
 		protected.Use(middleware.AuthRequired())
 		{
 			protected.GET("/auth/me", auth.Me)
 			protected.PUT("/auth/change-password", auth.ChangePassword)
+			protected.POST("/reservations", reservation.CreateReservation)
+			protected.GET("/reservations", reservation.GetMyReservations)
+			protected.DELETE("/reservations/:id", reservation.CancelReservation)
 		}
 
-		// Admin routes (ต้องเป็น admin เท่านั้น)
 		adminRoutes := api.Group("/admin")
 		adminRoutes.Use(middleware.AuthRequired(), middleware.AdminOnly())
 		{
-			adminRoutes.GET("/users", admin.GetUsers)
-			adminRoutes.POST("/users", admin.CreateUser)
-			adminRoutes.PUT("/users/:id/role", admin.UpdateUserRole)
-			adminRoutes.DELETE("/users/:id", admin.DeleteUser)
+			// Users
+			adminRoutes.GET("/users", adminUser.GetUsers)
+			adminRoutes.POST("/users", adminUser.CreateUser)
+			adminRoutes.PUT("/users/:id/role", adminUser.UpdateUserRole)
+			adminRoutes.PUT("/users/:id/password", adminUser.UpdateUserPassword)
+			adminRoutes.DELETE("/users/:id", adminUser.DeleteUser)
+
+			// Tables
+			adminRoutes.GET("/tables", tableAdmin.GetAllTables)
+			adminRoutes.POST("/tables", tableAdmin.CreateTable)
+			adminRoutes.PUT("/tables/:id", tableAdmin.UpdateTable)
+			adminRoutes.DELETE("/tables/:id", tableAdmin.DeleteTable)
+
+			// Floor Items
+			adminRoutes.GET("/floor-items", tableAdmin.GetFloorItems)
+			adminRoutes.POST("/floor-items", tableAdmin.CreateFloorItem)
+			adminRoutes.PUT("/floor-items/:id", tableAdmin.UpdateFloorItem)
+			adminRoutes.DELETE("/floor-items/:id", tableAdmin.DeleteFloorItem)
+
+			// Reservations
+			adminRoutes.GET("/reservations/summary", tableAdmin.GetSummary)
+			adminRoutes.GET("/reservations", tableAdmin.GetAllReservations)
+			adminRoutes.PUT("/reservations/:id/status", tableAdmin.UpdateReservationStatus)
 		}
 	}
 

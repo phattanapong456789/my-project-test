@@ -120,3 +120,28 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, toUserResponse(user))
 }
+
+// PUT /api/admin/users/:id/password — เปลี่ยนรหัสผ่าน user
+func (h *AdminHandler) UpdateUserPassword(c *gin.Context) {
+	var input struct {
+		Password string `json:"password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user models.User
+	if err := h.db.First(&user, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	hashed, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	h.db.Model(&user).Update("password", string(hashed))
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Password updated successfully",
+		"user":    toUserResponse(user),
+	})
+}
