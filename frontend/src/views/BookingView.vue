@@ -68,9 +68,10 @@
               :style="{ left: t.pos_x + 'px', top: t.pos_y + 'px' }"
               @click="selectTable(t)"
             >
-              <div class="t-num">{{ t.number }}</div>
-              <div class="t-name">{{ t.name }}</div>
-              <div class="t-seats">{{ t.seats }} ที่นั่ง</div>
+              
+              <div class="t-name">{{ t.number }}</div>
+              <div v-if="t.price > 0" class="t-price">฿{{ t.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</div>
+              
               <div v-if="t.is_booked" class="t-booked-tag">ไม่ว่าง</div>
             </div>
 
@@ -87,8 +88,11 @@
           <div class="sel-detail">
             <span class="sel-icon">🪑</span>
             <div>
-              <strong>{{ selectedTable.name }}</strong>
-              <span class="sel-sub">{{ selectedTable.seats }} ที่นั่ง</span>
+              <strong>โต๊ะ {{ selectedTable.number }}</strong>
+              <div class="sel-sub-row">
+                <span class="sel-sub">{{ selectedTable.seats }} ที่นั่ง</span>
+                <span v-if="selectedTable.price > 0" class="sel-price">฿{{ selectedTable.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -100,8 +104,9 @@
         <div class="summary-box">
           <div class="sum-row"><span>📅 วันที่</span><strong>{{ formatDateThai(selectedDate) }}</strong></div>
           <div class="sum-row"><span>🕘 เวลารับโต๊ะ</span><strong>ก่อน 21:00 น.</strong></div>
-          <div class="sum-row"><span>🪑 โต๊ะ</span><strong>{{ selectedTable?.name }}</strong></div>
+          <div class="sum-row"><span>🪑 โต๊ะ</span><strong>{{ selectedTable?.number }}</strong></div>
           <div class="sum-row"><span>👥 ที่นั่ง</span><strong>{{ selectedTable?.seats }} คน</strong></div>
+          <div v-if="selectedTable?.price > 0" class="sum-row"><span>💰 ราคา</span><strong class="price-highlight">฿{{ selectedTable.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</strong></div>
         </div>
         <div class="form-group" style="margin-top:16px">
           <label>หมายเหตุ (ไม่บังคับ)</label>
@@ -123,7 +128,7 @@
         <h2>จองสำเร็จ!</h2>
         <p class="success-sub">รอการยืนยันจากทางร้าน<br>เมื่อยืนยันแล้ว กรุณามาก่อน <strong>21:00 น.</strong></p>
         <div class="success-info">
-          <div class="sum-row"><span>โต๊ะ</span><strong>{{ successRes.table.name }}</strong></div>
+          <div class="sum-row"><span>โต๊ะ</span><strong>{{ successRes.table.number }}</strong></div>
           <div class="sum-row"><span>วันที่</span><strong>{{ formatDateThai(successRes.reserved_at.split('T')[0]) }}</strong></div>
           <div class="sum-row"><span>สถานะ</span><span class="badge-pending">⏳ รอยืนยัน</span></div>
         </div>
@@ -307,8 +312,8 @@ input:focus { border-color: #667eea; }
 
 .table-node {
   position: absolute;
-  width: 80px;
-  height: 80px;
+  width: 50px;
+  height: 50px;
   background: white;
   border: 2.5px solid #667eea;
   border-radius: 14px;
@@ -320,6 +325,7 @@ input:focus { border-color: #667eea; }
   box-shadow: 0 2px 10px rgba(102,126,234,0.15);
   transition: all 0.15s;
   z-index: 10;
+  padding: 2px;
 }
 .table-node:hover:not(.is-booked) {
   transform: scale(1.08);
@@ -338,13 +344,15 @@ input:focus { border-color: #667eea; }
   transform: scale(1.1);
   box-shadow: 0 6px 20px rgba(246,173,85,0.4);
 }
-.t-num { font-size: 1.3rem; font-weight: 800; color: #1a1a2e; line-height: 1; }
+.t-num { font-size: 1.2rem; font-weight: 800; color: #1a1a2e; line-height: 1; }
 .is-selected .t-num { color: white; }
-.t-name { font-size: 0.62rem; color: #667eea; font-weight: 600; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+.t-name { font-size: 0.9rem; color: #070707; font-weight: 600; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; line-height: 1; }
 .is-selected .t-name { color: rgba(255,255,255,0.85); }
+.t-price { font-size: 0.55rem; color: #667eea; font-weight: 600; margin-top: 1px; line-height: 1; }
+.is-selected .t-price { color: rgba(255,255,255,0.9); }
 .t-seats { font-size: 0.62rem; color: #aaa; }
 .is-selected .t-seats { color: rgba(255,255,255,0.7); }
-.t-booked-tag { font-size: 0.6rem; background: #fed7d7; color: #c53030; padding: 1px 5px; border-radius: 4px; margin-top: 2px; }
+.t-booked-tag { font-size: 0.5rem; background: #fed7d7; color: #c53030; padding: 1px 4px; border-radius: 4px; margin-top: 2px; }
 
 .empty-canvas {
   position: absolute;
@@ -366,7 +374,9 @@ input:focus { border-color: #667eea; }
 .sel-detail { display: flex; align-items: center; gap: 10px; }
 .sel-icon { font-size: 1.4rem; }
 .sel-detail strong { display: block; color: #1a1a2e; }
+.sel-sub-row { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .sel-sub { font-size: 0.85rem; color: #d97706; }
+.sel-price { font-size: 0.9rem; color: #667eea; font-weight: 600; }
 
 /* Summary */
 .summary-box {
@@ -379,6 +389,7 @@ input:focus { border-color: #667eea; }
 }
 .sum-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: #555; }
 .sum-row strong { color: #1a1a2e; }
+.price-highlight { color: #667eea; font-size: 1rem; }
 
 .alert-error {
   background: #fff5f5;

@@ -66,14 +66,12 @@
         <div v-for="r in reservations" :key="r.id" class="res-row" :class="`status-${r.status}`">
           <div class="res-info">
             <div class="res-main">
-              <strong>{{ r.table.name }}</strong>
-              <span class="zone-tag">{{ zoneLabel(r.table.zone) }}</span>
+              <strong>โต๊ะ {{ r.table.number }}</strong>
               <span class="status-badge" :class="`badge-${r.status}`">{{ statusLabel(r.status) }}</span>
             </div>
             <div class="res-meta">
               <span>👤 {{ r.user.name }} ({{ r.user.email }})</span>
               <span>📅 {{ formatDT(r.reserved_at) }}</span>
-              <span>👥 {{ r.table.seats }} ที่นั่ง</span>
             </div>
             <div v-if="r.note" class="res-note">📝 {{ r.note }}</div>
             <div v-if="r.admin_note" class="res-admin-note">💬 ทางร้าน: {{ r.admin_note }}</div>
@@ -95,7 +93,7 @@
         </h2>
         <p>
           <strong>{{ actionTarget.user.name }}</strong> จอง
-          <strong>{{ actionTarget.table.name }}</strong>
+          <strong>โต๊ะ {{ actionTarget.table.number }}</strong>
           วันที่ {{ formatDT(actionTarget.reserved_at) }}
         </p>
         <div class="form-group" style="margin-top: 14px;">

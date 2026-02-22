@@ -19,8 +19,8 @@ func NewReservationHandler(db *gorm.DB) *ReservationHandler {
 
 func toTableResponse(t models.Table) models.TableResponse {
 	return models.TableResponse{
-		ID: t.ID, Number: t.Number, Name: t.Name,
-		Seats: t.Seats, PosX: t.PosX, PosY: t.PosY, IsActive: t.IsActive,
+		ID: t.ID, Number: t.Number,
+		Seats: t.Seats, Price: t.Price, PosX: t.PosX, PosY: t.PosY, IsActive: t.IsActive,
 	}
 }
 
@@ -147,9 +147,14 @@ func (h *ReservationHandler) CreateReservation(c *gin.Context) {
 // GET /api/reservations — ดูการจองของตัวเอง
 func (h *ReservationHandler) GetMyReservations(c *gin.Context) {
 	userID := c.GetUint("userID")
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	today := time.Now().In(loc)
+	todayStart := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, loc)
+	
 	var reservations []models.Reservation
+	// แสดงเฉพาะ reservations ที่ยังไม่ผ่านวันนี้ (รวมวันนี้ด้วย)
 	h.db.Preload("User").Preload("Table").
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND DATE(reserved_at AT TIME ZONE 'Asia/Bangkok') >= ?", userID, todayStart.Format("2006-01-02")).
 		Order("reserved_at desc").Find(&reservations)
 
 	result := make([]models.ReservationResponse, len(reservations))

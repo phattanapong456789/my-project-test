@@ -5,6 +5,7 @@ import (
 	"auth-app/handlers"
 	"auth-app/middleware"
 	"auth-app/models"
+	"auth-app/utils"
 	"log"
 	"os"
 
@@ -25,6 +26,10 @@ func main() {
 
 	db.AutoMigrate(&models.User{}, &models.Table{}, &models.FloorItem{}, &models.Reservation{})
 	log.Println("Database migrated")
+
+	// เริ่มต้น cleanup scheduler สำหรับลบ reservations ที่ผ่านมาแล้ว
+	utils.StartCleanupScheduler(db)
+	log.Println("Cleanup scheduler started (runs daily at 02:00 AM)")
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{

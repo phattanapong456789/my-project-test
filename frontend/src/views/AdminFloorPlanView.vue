@@ -13,12 +13,8 @@
         <div class="panel-title">🪑 เพิ่มโต๊ะ</div>
         <div class="form-row">
           <div class="form-group">
-            <label>ชื่อโต๊ะ</label>
-            <input v-model="newTable.name" placeholder="ชื่อ (ไม่บังคับ)" />
-          </div>
-          <div class="form-group">
-            <label>ที่นั่ง</label>
-            <input v-model.number="newTable.seats" type="number" min="1" max="30" />
+            <label>ราคา (บาท)</label>
+            <input v-model.number="newTable.price" type="number" min="0" step="0.01" placeholder="0" />
           </div>
         </div>
         <button @click="addTable" class="btn-add-table" :disabled="addingTable">
@@ -49,13 +45,15 @@
 
         <template v-if="selected.itemType === 'table'">
           <div class="form-group">
-            <label>ชื่อโต๊ะ</label>
-            <input v-model="selected.name" @input="saveTableEdit" />
+            <label>เลขโต๊ะ</label>
+            <input v-model.number="selected.number" disabled style="background: #f5f5f5;" />
           </div>
+          
           <div class="form-group">
-            <label>ที่นั่ง</label>
-            <input v-model.number="selected.seats" type="number" min="1" @input="saveTableEdit" />
+            <label>ราคา (บาท)</label>
+            <input v-model.number="selected.price" type="number" min="0" step="0.01" @input="saveTableEdit" />
           </div>
+          
           <div class="form-group toggle-row">
             <label>เปิดให้บริการ</label>
             <input type="checkbox" v-model="selected.is_active" @change="saveTableEdit" class="toggle" />
@@ -96,19 +94,19 @@
     <!-- Canvas -->
     <div class="canvas-wrapper" ref="canvasWrapper">
       <div class="canvas-toolbar">
-        <span class="canvas-title">Canvas ผังร้าน</span>
+        <span class="canvas-title"> ผังร้าน</span>
         <span class="canvas-hint">{{ tables.length }} โต๊ะ · {{ floorItems.length }} elements</span>
       </div>
 
-      <div
-        class="canvas"
-        ref="canvas"
-        @mousedown.self="deselectAll"
-        @mousemove="onMouseMove"
-        @mouseup="onMouseUp"
-        @touchmove.prevent="onTouchMove"
-        @touchend="onTouchEnd"
-      >
+        <div
+          class="canvas"
+          ref="canvas"
+          @mousedown.self="deselectAll"
+          @mousemove="onMouseMove"
+          @mouseup="onMouseUp"
+          @touchmove.prevent="onTouchMove"
+          @touchend="onTouchEnd"
+        >
         <!-- Floor Items (อยู่ข้างล่างโต๊ะ) -->
         <div
           v-for="item in floorItems"
@@ -137,9 +135,10 @@
           @touchstart.stop.prevent="startDragTableTouch($event, table)"
           @click.stop="selectTable(table)"
         >
-          <div class="t-number">{{ table.number }}</div>
-          <div class="t-name">{{ table.name }}</div>
-          <div class="t-seats">{{ table.seats }} ที่นั่ง</div>
+          
+          <div class="t-name">{{ table.number }}</div>
+          <div v-if="table.price > 0" class="t-price">฿{{ table.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</div>
+          
           <div v-if="!table.is_active" class="t-closed">ปิด</div>
         </div>
       </div>
@@ -156,7 +155,7 @@ const tables = ref([])
 const floorItems = ref([])
 const selected = ref(null)
 const addingTable = ref(false)
-const newTable = ref({ name: '', seats: 4 })
+const newTable = ref({ seats: 4, price: 0 })
 const canvasWrapper = ref(null)
 const canvas = ref(null)
 
@@ -168,9 +167,7 @@ let saveTimer = null
 
 const elementTypes = [
   { type: 'stage',    icon: '🎤', label: 'เวที',     width: 200, height: 100 },
-  { type: 'bar',      icon: '🍸', label: 'บาร์',     width: 160, height: 80 },
-  { type: 'restroom', icon: '🚻', label: 'ห้องน้ำ',  width: 100, height: 80 },
-  { type: 'entrance', icon: '🚪', label: 'ทางเข้า',  width: 120, height: 60 },
+
 ]
 
 onMounted(loadAll)
@@ -196,12 +193,12 @@ async function addTable() {
     const cx = canvasRect ? Math.floor((canvasRect.width / 2) - 40) : 200
     const cy = canvasRect ? Math.floor((canvasRect.height / 2) - 40) : 200
     const res = await tableApi.adminCreateTable({
-      name: newTable.value.name,
       seats: newTable.value.seats || 4,
+      price: newTable.value.price || 0,
       pos_x: cx, pos_y: cy,
     })
     tables.value.push({ ...res.data, itemType: 'table' })
-    newTable.value = { name: '', seats: 4 }
+    newTable.value = { seats: 4, price: 0 }
   } finally {
     addingTable.value = false
   }
@@ -229,8 +226,8 @@ function saveTableEdit() {
   saveTimer = setTimeout(async () => {
     if (!selected.value || selected.value.itemType !== 'table') return
     await tableApi.adminUpdateTable(selected.value.id, {
-      name: selected.value.name,
       seats: selected.value.seats,
+      price: selected.value.price,
       is_active: selected.value.is_active,
     })
   }, 600)
@@ -251,7 +248,7 @@ function saveFloorEdit() {
 // ---- Delete ----
 async function deleteSelected() {
   if (!selected.value) return
-  if (!confirm(`ลบ "${selected.value.name || selected.value.label}" ?`)) return
+  if (!confirm(`ลบ "${selected.value.itemType === 'table' ? 'โต๊ะ ' + selected.value.number : selected.value.label}" ?`)) return
   if (selected.value.itemType === 'table') {
     await tableApi.adminDeleteTable(selected.value.id)
     tables.value = tables.value.filter(t => t.id !== selected.value.id)
@@ -476,8 +473,8 @@ input:focus { border-color: #667eea; }
 /* Table Nodes */
 .table-node {
   position: absolute;
-  width: 80px;
-  height: 80px;
+  width: 50px;
+  height: 50px;
   background: white;
   border: 2.5px solid #667eea;
   border-radius: 14px;
@@ -489,6 +486,7 @@ input:focus { border-color: #667eea; }
   box-shadow: 0 2px 10px rgba(102,126,234,0.15);
   transition: box-shadow 0.15s, border-color 0.15s;
   z-index: 10;
+  padding: 2px;
 }
 .table-node:active { cursor: grabbing; }
 .table-node.selected {
@@ -499,10 +497,11 @@ input:focus { border-color: #667eea; }
   border-color: #cbd5e0;
   opacity: 0.55;
 }
-.t-number { font-size: 1.4rem; font-weight: 800; color: #1a1a2e; line-height: 1; }
-.t-name { font-size: 0.65rem; color: #667eea; font-weight: 600; margin-top: 1px; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
+.t-number { font-size: 1.2rem; font-weight: 800; color: #1a1a2e; line-height: 1; }
+.t-name { font-size: 0.9rem; font-weight: 800; color: #1a1a2e; line-height: 1; }
+.t-price { font-size: 0.55rem; color: #667eea; font-weight: 600; margin-top: 1px; line-height: 1; }
 .t-seats { font-size: 0.65rem; color: #aaa; }
-.t-closed { font-size: 0.6rem; background: #fed7d7; color: #c53030; padding: 1px 5px; border-radius: 4px; margin-top: 2px; }
+.t-closed { font-size: 0.5rem; background: #fed7d7; color: #c53030; padding: 1px 4px; border-radius: 4px; margin-top: 2px; }
 
 /* Floor Items */
 .floor-item {

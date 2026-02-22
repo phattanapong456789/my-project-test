@@ -3,13 +3,13 @@ package models
 import "time"
 
 type Table struct {
-	ID       uint   `json:"id" gorm:"primarykey"`
-	Number   int    `json:"number" gorm:"uniqueIndex;not null"` // เลขโต๊ะ auto
-	Name     string `json:"name"`                               // ชื่อโต๊ะ (admin กำหนดได้)
-	Seats    int    `json:"seats" gorm:"default:4;not null"`    // จำนวนที่นั่ง default 4
-	PosX     int    `json:"pos_x" gorm:"default:100"`           // ตำแหน่ง X บน canvas
-	PosY     int    `json:"pos_y" gorm:"default:100"`           // ตำแหน่ง Y บน canvas
-	IsActive bool   `json:"is_active" gorm:"default:true"`
+	ID       uint    `json:"id" gorm:"primarykey"`
+	Number   int     `json:"number" gorm:"uniqueIndex;not null"` // เลขโต๊ะ auto
+	Seats    int     `json:"seats" gorm:"default:4;not null"`    // จำนวนที่นั่ง default 4
+	Price    float64 `json:"price" gorm:"default:0"`             // ราคาต่อโต๊ะ
+	PosX     int     `json:"pos_x" gorm:"default:100"`          // ตำแหน่ง X บน canvas
+	PosY     int     `json:"pos_y" gorm:"default:100"`          // ตำแหน่ง Y บน canvas
+	IsActive bool    `json:"is_active" gorm:"default:true"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -51,13 +51,13 @@ type Reservation struct {
 }
 
 type TableResponse struct {
-	ID       uint   `json:"id"`
-	Number   int    `json:"number"`
-	Name     string `json:"name"`
-	Seats    int    `json:"seats"`
-	PosX     int    `json:"pos_x"`
-	PosY     int    `json:"pos_y"`
-	IsActive bool   `json:"is_active"`
+	ID       uint    `json:"id"`
+	Number   int     `json:"number"`
+	Seats    int     `json:"seats"`
+	Price    float64 `json:"price"`
+	PosX     int     `json:"pos_x"`
+	PosY     int     `json:"pos_y"`
+	IsActive bool    `json:"is_active"`
 }
 
 type FloorItemResponse struct {

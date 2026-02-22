@@ -24,7 +24,7 @@
             <div class="res-table">
               <span class="t-icon">🪑</span>
               <div>
-                <strong>{{ r.table.name }}</strong>
+                <strong>โต๊ะ {{ r.table.number }}</strong>
                 <span class="seats-tag">{{ r.table.seats }} ที่นั่ง</span>
               </div>
             </div>
@@ -84,7 +84,7 @@ async function load() {
 }
 
 async function cancelRes(r) {
-  if (!confirm(`ยืนยันยกเลิกการจอง "${r.table.name}" ?`)) return
+  if (!confirm(`ยืนยันยกเลิกการจอง "โต๊ะ ${r.table.number}" ?`)) return
   cancelling.value = r.id
   try {
     await tableApi.cancelReservation(r.id)

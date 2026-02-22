@@ -31,10 +31,10 @@ func (h *TableAdminHandler) GetAllTables(c *gin.Context) {
 // POST /api/admin/tables — เพิ่มโต๊ะ (auto-number)
 func (h *TableAdminHandler) CreateTable(c *gin.Context) {
 	var input struct {
-		Name  string `json:"name"`
-		Seats int    `json:"seats"`
-		PosX  int    `json:"pos_x"`
-		PosY  int    `json:"pos_y"`
+		Seats int     `json:"seats"`
+		Price float64 `json:"price"`
+		PosX  int     `json:"pos_x"`
+		PosY  int     `json:"pos_y"`
 	}
 	c.ShouldBindJSON(&input)
 
@@ -48,13 +48,9 @@ func (h *TableAdminHandler) CreateTable(c *gin.Context) {
 	if seats <= 0 {
 		seats = 4
 	}
-	name := input.Name
-	if name == "" {
-		name = "โต๊ะ " + itoa(nextNumber)
-	}
 
 	table := models.Table{
-		Number: nextNumber, Name: name, Seats: seats,
+		Number: nextNumber, Seats: seats, Price: input.Price,
 		PosX: input.PosX, PosY: input.PosY, IsActive: true,
 	}
 	h.db.Create(&table)
@@ -69,19 +65,19 @@ func (h *TableAdminHandler) UpdateTable(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Name     *string `json:"name"`
-		Seats    *int    `json:"seats"`
-		PosX     *int    `json:"pos_x"`
-		PosY     *int    `json:"pos_y"`
-		IsActive *bool   `json:"is_active"`
+		Seats    *int     `json:"seats"`
+		Price    *float64 `json:"price"`
+		PosX     *int     `json:"pos_x"`
+		PosY     *int     `json:"pos_y"`
+		IsActive *bool    `json:"is_active"`
 	}
 	c.ShouldBindJSON(&input)
 	updates := map[string]interface{}{}
-	if input.Name != nil {
-		updates["name"] = *input.Name
-	}
 	if input.Seats != nil {
 		updates["seats"] = *input.Seats
+	}
+	if input.Price != nil {
+		updates["price"] = *input.Price
 	}
 	if input.PosX != nil {
 		updates["pos_x"] = *input.PosX
@@ -147,8 +143,7 @@ func (h *TableAdminHandler) CreateFloorItem(c *gin.Context) {
 	label := input.Label
 	if label == "" {
 		labels := map[string]string{
-			"stage": "🎤 เวที", "bar": "🍸 บาร์",
-			"restroom": "🚻 ห้องน้ำ", "entrance": "🚪 ทางเข้า",
+			"stage": "🎤 เวที",
 		}
 		if l, ok := labels[input.Type]; ok {
 			label = l
