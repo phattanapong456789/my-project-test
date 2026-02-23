@@ -89,7 +89,7 @@
       <div class="canvas-toolbar">
         <div class="zoom-controls">
           <button @click="zoomOut">−</button>
-          <span>{{ Math.round(zoom * 100) }}%</span>
+          <span>{{ Math.round(zoom * 70) }}%</span>
           <button @click="zoomIn">+</button>
           <button @click="resetZoom">Reset</button>
         </div>
@@ -116,11 +116,11 @@
           @wheel.prevent="onWheelZoom"        
         >
           <!-- Grid lines overlay -->
-          <svg v-if="showGridLines" class="grid-svg" :width="CANVAS_W" :height="CANVAS_H">
+          <svg v-if="showGridLines" class="grid-svg" :width="canvasWidth" :height="canvasHeight">
             <line v-for="x in gridLinesCols" :key="'v' + x"
-              :x1="x" y1="0" :x2="x" :y2="CANVAS_H" stroke="#c8ccdd" stroke-width="0.5" />
+              :x1="x" y1="0" :x2="x" :y2="canvasHeight.value" stroke="#c8ccdd" stroke-width="0.5" />
             <line v-for="y in gridLinesRows" :key="'h' + y"
-              x1="0" :y1="y" :x2="CANVAS_W" :y2="y" stroke="#c8ccdd" stroke-width="0.5" />
+              x1="0" :y1="y" :x2="canvasWidth.value" :y2="y" stroke="#c8ccdd" stroke-width="0.5" />
           </svg>
 
           <!-- Ghost cell highlight ขณะ drag -->
@@ -175,9 +175,9 @@
   import { tableApi } from '../api/auth'
 
   // ---- Constants ----
-    const CANVAS_W = 1200
-    const CANVAS_H = 800
-
+    /*const canvasWidth.value = 1000
+    const canvasHeight.value = 1000*/
+    const CANVAS_PADDING = 50
   // ---- State ----
     const tables = ref([])
     const floorItems = ref([])
@@ -313,24 +313,57 @@
       panTouchOriginY = panY.value
     }
 // ---- Computed ----
+  //สร้าง canvasWidth / canvasHeight แบบ dynamic
+  //สร้าง canvasWidth / canvasHeight แบบ dynamic
+    const MIN_CANVAS_W = 600
+    const MIN_CANVAS_H = 600
+    
+
+    const canvasWidth = computed(() => {
+      let maxRight = 0
+
+      tables.value.forEach(t => {
+        maxRight = Math.max(maxRight, t.pos_x + tableSize.value)
+      })
+
+      floorItems.value.forEach(f => {
+        maxRight = Math.max(maxRight, f.pos_x + f.width)
+      })
+
+      return Math.max(MIN_CANVAS_W, maxRight + CANVAS_PADDING)
+    })
+
+    const canvasHeight = computed(() => {
+      let maxBottom = 0
+
+      tables.value.forEach(t => {
+        maxBottom = Math.max(maxBottom, t.pos_y + tableSize.value)
+      })
+
+      floorItems.value.forEach(f => {
+        maxBottom = Math.max(maxBottom, f.pos_y + f.height)
+      })
+
+      return Math.max(MIN_CANVAS_H, maxBottom + CANVAS_PADDING)
+    })
   const tableSize = computed(() => gridSize.value * 2)
 
   const canvasStyle = computed(() => ({
     backgroundSize: `${gridSize.value}px ${gridSize.value}px`,
-    width: CANVAS_W + 'px',
-    height: CANVAS_H + 'px',
+    width: canvasWidth.value + 'px',
+    height: canvasHeight.value + 'px',
     transform: `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})`,
     transformOrigin: '0 0',
   }))
 
   const gridLinesCols = computed(() => {
     const cols = []
-    for (let x = gridSize.value; x < CANVAS_W; x += gridSize.value) cols.push(x)
+    for (let x = gridSize.value; x < canvasWidth.value; x += gridSize.value) cols.push(x)
     return cols
   })
   const gridLinesRows = computed(() => {
     const rows = []
-    for (let y = gridSize.value; y < CANVAS_H; y += gridSize.value) rows.push(y)
+    for (let y = gridSize.value; y < canvasHeight.value; y += gridSize.value) rows.push(y)
     return rows
   })
 
@@ -372,8 +405,8 @@
   async function addTable() {
     addingTable.value = true
     try {
-      const cx = snap(CANVAS_W / 2 - tableSize.value / 2, gridSize.value)
-      const cy = snap(CANVAS_H / 2 - tableSize.value / 2, gridSize.value)
+      const cx = snap(canvasWidth.value / 2 - tableSize.value / 2, gridSize.value)
+      const cy = snap(canvasHeight.value / 2 - tableSize.value / 2, gridSize.value)
       const res = await tableApi.adminCreateTable({
         price: newTable.value.price || 0,
         pos_x: cx, pos_y: cy,
@@ -389,8 +422,8 @@
   async function addFloorItem(el) {
     const w = snap(el.width, gridSize.value) || gridSize.value * 2
     const h = snap(el.height, gridSize.value) || gridSize.value * 2
-    const cx = snap(CANVAS_W / 2 - w / 2, gridSize.value)
-    const cy = snap(CANVAS_H / 2 - h / 2, gridSize.value)
+    const cx = snap(canvasWidth.value / 2 - w / 2, gridSize.value)
+    const cy = snap(canvasHeight.value / 2 - h / 2, gridSize.value)
     const res = await tableApi.adminCreateFloorItem({
       type: el.type, label:  el.label,
       pos_x: cx, pos_y: cy, width: w, height: h,
@@ -484,8 +517,8 @@ dragOffsetY = pointerY - item.pos_y
       (e.clientY - canvasRect.top - panY.value) / zoom.value - dragOffsetY
     const size = dragging.type === 'table' ? tableSize.value : dragging.item.width
     const hgt  = dragging.type === 'table' ? tableSize.value : dragging.item.height
-    dragging.item.pos_x = clamp(snap(rawX, gridSize.value), 0, CANVAS_W - size)
-    dragging.item.pos_y = clamp(snap(rawY, gridSize.value), 0, CANVAS_H - hgt)
+    dragging.item.pos_x = clamp(snap(rawX, gridSize.value), 0, canvasWidth.value - size)
+    dragging.item.pos_y = clamp(snap(rawY, gridSize.value), 0, canvasHeight.value - hgt)
     ghostCell.value = { x: dragging.item.pos_x, y: dragging.item.pos_y, w: size, h: hgt }
   }
 
@@ -591,8 +624,8 @@ dragOffsetY = pointerY - item.pos_y
         const hgt =
           dragging.type === 'table' ? tableSize.value : dragging.item.height
 
-        dragging.item.pos_x = clamp(snap(rawX, gridSize.value), 0, CANVAS_W - size)
-        dragging.item.pos_y = clamp(snap(rawY, gridSize.value), 0, CANVAS_H - hgt)
+        dragging.item.pos_x = clamp(snap(rawX, gridSize.value), 0, canvasWidth.value - size)
+        dragging.item.pos_y = clamp(snap(rawY, gridSize.value), 0, canvasHeight.value - hgt)
 
         ghostCell.value = {
           x: dragging.item.pos_x,
