@@ -69,4 +69,6 @@ export const tableApi = {
   adminGetSummary: () => api.get('/admin/reservations/summary'),
   adminUpdateStatus: (id, status, adminNote) =>
     api.put(`/admin/reservations/${id}/status`, { status, admin_note: adminNote }),
+  adminDeleteReservation: (id) => api.delete(`/admin/reservations/${id}`),
+  adminDeleteReservationsBulk: (ids) => api.post('/admin/reservations/delete-bulk', { ids }),
 }

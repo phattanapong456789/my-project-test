@@ -4,6 +4,7 @@ import (
 	"auth-app/models"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -216,7 +217,7 @@ func (h *TableAdminHandler) DeleteFloorItem(c *gin.Context) {
 func (h *TableAdminHandler) GetAllReservations(c *gin.Context) {
 	query := h.db.Preload("User").Preload("Table").Order("reserved_at asc")
 	if date := c.Query("date"); date != "" {
-		query = query.Where("DATE(reserved_at) = ?", date)
+		query = query.Where("DATE(reserved_at AT TIME ZONE 'Asia/Bangkok') = ?", date)
 	}
 	if status := c.Query("status"); status != "" {
 		query = query.Where("status = ?", status)
@@ -264,12 +265,47 @@ func (h *TableAdminHandler) UpdateReservationStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, toReservationResponse(reservation))
 }
 
+// DELETE /api/admin/reservations/:id — ลบการจอง (admin only)
+func (h *TableAdminHandler) DeleteReservation(c *gin.Context) {
+	var reservation models.Reservation
+	if err := h.db.First(&reservation, c.Param("id")).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบการจองนี้"})
+		return
+	}
+	h.db.Delete(&reservation)
+	c.JSON(http.StatusOK, gin.H{"message": "ลบการจองสำเร็จ"})
+}
+
+// POST /api/admin/reservations/delete-bulk — ลบหลายรายการพร้อมกัน
+func (h *TableAdminHandler) DeleteReservationsBulk(c *gin.Context) {
+	var input struct {
+		IDs []uint `json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องส่ง ids เป็น array"})
+		return
+	}
+	if len(input.IDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ไม่มีรายการที่เลือก"})
+		return
+	}
+	result := h.db.Delete(&models.Reservation{}, input.IDs)
+	c.JSON(http.StatusOK, gin.H{"message": "ลบสำเร็จ", "deleted": result.RowsAffected})
+}
+
 func (h *TableAdminHandler) GetSummary(c *gin.Context) {
-	today := "NOW()::date"
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	today := time.Now().In(loc).Format("2006-01-02")
 	var totalToday, pendingToday, approvedToday int64
-	h.db.Model(&models.Reservation{}).Where("DATE(reserved_at) = " + today).Count(&totalToday)
-	h.db.Model(&models.Reservation{}).Where("DATE(reserved_at) = "+today+" AND status = ?", models.ReservationStatusPending).Count(&pendingToday)
-	h.db.Model(&models.Reservation{}).Where("DATE(reserved_at) = "+today+" AND status = ?", models.ReservationStatusApproved).Count(&approvedToday)
+	h.db.Model(&models.Reservation{}).
+		Where("DATE(reserved_at AT TIME ZONE 'Asia/Bangkok') = ?", today).
+		Count(&totalToday)
+	h.db.Model(&models.Reservation{}).
+		Where("DATE(reserved_at AT TIME ZONE 'Asia/Bangkok') = ? AND status = ?", today, models.ReservationStatusPending).
+		Count(&pendingToday)
+	h.db.Model(&models.Reservation{}).
+		Where("DATE(reserved_at AT TIME ZONE 'Asia/Bangkok') = ? AND status = ?", today, models.ReservationStatusApproved).
+		Count(&approvedToday)
 	var activeTables int64
 	h.db.Model(&models.Table{}).Where("is_active = ?", true).Count(&activeTables)
 	c.JSON(http.StatusOK, gin.H{

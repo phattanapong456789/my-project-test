@@ -15,25 +15,25 @@
       </div>
 
       <!-- Summary Cards -->
-      <div class="summary-grid" v-if="summary">
+      <div class="summary-grid">
         <div class="summary-card">
           <div class="s-icon">📅</div>
-          <div class="s-num">{{ summary.today.total }}</div>
-          <div class="s-label">จองวันนี้ทั้งหมด</div>
+          <div class="s-num">{{ shownTotal }}</div>
+          <div class="s-label">รายการทั้งหมด (ตามตัวกรอง)</div>
         </div>
         <div class="summary-card pending">
           <div class="s-icon">⏳</div>
-          <div class="s-num">{{ summary.today.pending }}</div>
-          <div class="s-label">รอยืนยัน</div>
+          <div class="s-num">{{ shownPending }}</div>
+          <div class="s-label">รอยืนยัน (ตามตัวกรอง)</div>
         </div>
         <div class="summary-card approved">
           <div class="s-icon">✅</div>
-          <div class="s-num">{{ summary.today.approved }}</div>
-          <div class="s-label">ยืนยันแล้ว</div>
+          <div class="s-num">{{ shownApproved }}</div>
+          <div class="s-label">ยืนยันแล้ว (ตามตัวกรอง)</div>
         </div>
         <div class="summary-card tables">
           <div class="s-icon">🪑</div>
-          <div class="s-num">{{ summary.tables.active }}</div>
+          <div class="s-num">{{ activeTables }}</div>
           <div class="s-label">โต๊ะที่เปิดให้บริการ</div>
         </div>
       </div>
@@ -62,8 +62,26 @@
       <!-- Reservations List -->
       <div v-else-if="reservations.length === 0" class="empty">ไม่มีการจองในช่วงนี้</div>
 
-      <div v-else class="res-list">
+      <template v-else>
+        <!-- ปุ่มลบรายการที่เลือก -->
+        <div v-if="selectedIds.length > 0" class="bulk-actions">
+          <span class="selected-count">เลือก {{ selectedIds.length }} รายการ</span>
+          <button @click="deleteSelected" class="btn-delete-bulk" :disabled="deleting">
+            {{ deleting ? 'กำลังลบ...' : '🗑️ ลบรายการที่เลือก' }}
+          </button>
+        </div>
+
+        <div class="res-list">
+        <div class="res-list-header">
+          <label class="checkbox-wrap">
+            <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" />
+            <span>เลือกทั้งหมด</span>
+          </label>
+        </div>
         <div v-for="r in reservations" :key="r.id" class="res-row" :class="`status-${r.status}`">
+          <label class="checkbox-wrap res-checkbox">
+            <input type="checkbox" :value="r.id" v-model="selectedIds" />
+          </label>
           <div class="res-info">
             <div class="res-main">
               <strong>โต๊ะ {{ r.table.number }}</strong>
@@ -81,6 +99,21 @@
             <button @click="openAction(r, 'approved')" class="btn-approve">✅ อนุมัติ</button>
             <button @click="openAction(r, 'rejected')" class="btn-reject">❌ ปฏิเสธ</button>
           </div>
+        </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Modal ยืนยันลบ -->
+    <div v-if="deleteConfirm" class="modal-overlay" @click.self="deleteConfirm = false">
+      <div class="modal">
+        <h2>🗑️ ยืนยันลบรายการจอง</h2>
+        <p>ต้องการลบ {{ selectedIds.length }} รายการที่เลือกใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
+        <div class="modal-actions">
+          <button @click="deleteConfirm = false" class="btn-cancel">ยกเลิก</button>
+          <button @click="confirmDelete" class="btn-confirm-reject" :disabled="deleting">
+            {{ deleting ? 'กำลังลบ...' : 'ยืนยันลบ' }}
+          </button>
         </div>
       </div>
     </div>
@@ -117,7 +150,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { tableApi } from '../api/auth'
 
 const reservations = ref([])
@@ -126,11 +159,53 @@ const loading = ref(false)
 const filterDate = ref('')
 const filterStatus = ref('')
 
+const shownTotal = computed(() => reservations.value.length)
+const shownPending = computed(() => reservations.value.filter(r => r.status === 'pending').length)
+const shownApproved = computed(() => reservations.value.filter(r => r.status === 'approved').length)
+const activeTables = computed(() => summary.value?.tables?.active ?? 0)
+
 const actionTarget = ref(null)
 const actionStatus = ref('')
 const adminNote = ref('')
 const actioning = ref(false)
 const actionError = ref(null)
+
+const selectedIds = ref([])
+const deleteConfirm = ref(false)
+const deleting = ref(false)
+
+const isAllSelected = computed(() => {
+  if (reservations.value.length === 0) return false
+  return selectedIds.value.length === reservations.value.length
+})
+
+function toggleSelectAll() {
+  if (isAllSelected.value) {
+    selectedIds.value = []
+  } else {
+    selectedIds.value = reservations.value.map(r => r.id)
+  }
+}
+
+function deleteSelected() {
+  if (selectedIds.value.length === 0) return
+  deleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  deleting.value = true
+  try {
+    await tableApi.adminDeleteReservationsBulk(selectedIds.value)
+    selectedIds.value = []
+    deleteConfirm.value = false
+    load()
+    loadSummary()
+  } catch (e) {
+    actionError.value = e.response?.data?.error || 'เกิดข้อผิดพลาด'
+  } finally {
+    deleting.value = false
+  }
+}
 
 onMounted(() => { loadSummary(); load() })
 
@@ -143,6 +218,7 @@ async function loadSummary() {
 
 async function load() {
   loading.value = true
+  selectedIds.value = []
   try {
     const res = await tableApi.adminGetReservations(filterDate.value, filterStatus.value)
     reservations.value = res.data
@@ -224,12 +300,31 @@ input:focus, select:focus { border-color: #667eea; }
 
 .loading, .empty { text-align: center; color: #888; padding: 40px; }
 
+.bulk-actions {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 16px;
+  padding: 12px 16px; background: #fff5f5; border: 1.5px solid #fed7d7; border-radius: 10px;
+}
+.selected-count { font-weight: 600; color: #c53030; }
+.btn-delete-bulk {
+  padding: 8px 16px; background: #c53030; color: white; border: none; border-radius: 8px;
+  cursor: pointer; font-weight: 600; font-size: 0.9rem;
+}
+.btn-delete-bulk:hover:not(:disabled) { background: #9b2c2c; }
+.btn-delete-bulk:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .res-list { display: flex; flex-direction: column; gap: 12px; }
+.res-list-header {
+  padding: 10px 20px; background: #f8f8f8; border-radius: 10px; border: 1.5px solid #e8e8e8;
+}
+.checkbox-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; }
+.checkbox-wrap input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+.res-checkbox { flex-shrink: 0; padding: 4px; }
 .res-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 16px 20px;
+  gap: 12px;
   border-radius: 12px;
   border: 1.5px solid #e8e8e8;
   gap: 16px;

@@ -86,6 +86,8 @@ func main() {
 			adminRoutes.GET("/reservations/summary", tableAdmin.GetSummary)
 			adminRoutes.GET("/reservations", tableAdmin.GetAllReservations)
 			adminRoutes.PUT("/reservations/:id/status", tableAdmin.UpdateReservationStatus)
+			adminRoutes.DELETE("/reservations/:id", tableAdmin.DeleteReservation)
+			adminRoutes.POST("/reservations/delete-bulk", tableAdmin.DeleteReservationsBulk)
 		}
 	}
 
