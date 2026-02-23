@@ -10,7 +10,7 @@
         </div>
         <div class="header-actions">
           <router-link to="/admin/floor-plan" class="btn-tables">🗺️ ผังร้าน</router-link>
-          <router-link to="/admin" class="btn-back">← กลับ Admin</router-link>
+          <router-link to="/dashboard" class="btn-back">← กลับหน้าหลัก</router-link>
         </div>
       </div>
 
@@ -19,22 +19,22 @@
         <div class="summary-card">
           <div class="s-icon">📅</div>
           <div class="s-num">{{ shownTotal }}</div>
-          <div class="s-label">รายการทั้งหมด (ตามตัวกรอง)</div>
+          <div class="s-label">รายการทั้งหมด </div>
         </div>
         <div class="summary-card pending">
           <div class="s-icon">⏳</div>
           <div class="s-num">{{ shownPending }}</div>
-          <div class="s-label">รอยืนยัน (ตามตัวกรอง)</div>
+          <div class="s-label">รอยืนยัน </div>
         </div>
         <div class="summary-card approved">
           <div class="s-icon">✅</div>
           <div class="s-num">{{ shownApproved }}</div>
-          <div class="s-label">ยืนยันแล้ว (ตามตัวกรอง)</div>
+          <div class="s-label">ยืนยันแล้ว </div>
         </div>
         <div class="summary-card tables">
           <div class="s-icon">🪑</div>
           <div class="s-num">{{ activeTables }}</div>
-          <div class="s-label">โต๊ะที่เปิดให้บริการ</div>
+          <div class="s-label">โต๊ะ</div>
         </div>
       </div>
 

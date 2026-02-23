@@ -4,7 +4,7 @@
     <!-- Sidebar -->
     <div class="sidebar">
       <div class="sidebar-header">
-        <router-link to="/admin/reservations" class="btn-back">← กลับ</router-link>
+        <router-link to="/dashboard" class="btn-back">← กลับหน้าหลัก</router-link>
         <h2>🗺️ ผังร้าน</h2>
       </div>
 
@@ -362,7 +362,7 @@ async function savePosition({ item, type }) {
 
 .sidebar-header {
   padding: 20px 20px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 2px solid #f0f0f0;
 }
 .btn-back { color: #888; text-decoration: none; font-size: 0.85rem; display: block; margin-bottom: 6px; }
 .btn-back:hover { color: #333; }

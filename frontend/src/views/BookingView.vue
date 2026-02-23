@@ -113,10 +113,20 @@
           <input v-model="note" type="text" placeholder="เช่น วันเกิด, ขอเค้ก..." />
         </div>
         <div v-if="bookError" class="alert-error">⚠️ {{ bookError }}</div>
-        <button class="btn-book" @click="handleBook" :disabled="booking">
+        <!-- เพิ่ม modal -->
+        <div v-if="showConfirm" class="modal-overlay">
+          <div class="modal-box">
+            <p>ยืนยันการจองโต๊ะใช่ไหม?</p>
+            <button @click="handleBook(); showConfirm = false">✅ ยืนยัน</button>
+            <button @click="showConfirm = false">❌ ยกเลิก</button>
+          </div>
+        </div>
+
+        <button class="btn-book" @click="showConfirm = true" :disabled="booking">
           <span v-if="booking" class="spinner"></span>
           {{ booking ? 'กำลังจอง...' : '🍺 ยืนยันจองโต๊ะ' }}
         </button>
+        
       </div>
 
     </div>
@@ -155,7 +165,7 @@ const loadingFloor = ref(false)
 const booking = ref(false)
 const bookError = ref(null)
 const successRes = ref(null)
-
+const showConfirm = ref(false)
 const selectedTable = computed(() => tables.value.find(t => t.id === selectedTableId.value))
 
 async function loadFloorPlan() {
@@ -184,7 +194,6 @@ function formatDateThai(dateStr) {
   const d = dateStr.length > 10 ? new Date(dateStr) : new Date(dateStr + 'T00:00:00')
   return d.toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 }
-
 async function handleBook() {
   if (!selectedTableId.value) return
   booking.value = true
