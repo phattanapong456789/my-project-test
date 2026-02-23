@@ -2,25 +2,28 @@
   <div class="editor-page">
 
     <!-- Sidebar -->
-    <div class="sidebar">
+    <div
+      class="sidebar"
+      :class="{ open: isSidebarOpen }"
+    >
       <div class="sidebar-header">
-        <router-link to="/dashboard" class="btn-back">← กลับหน้าหลัก</router-link>
-        <h2>🗺️ ผังร้าน</h2>
+        <div class="sidebar-title-row">
+          
+          <button
+            class="sidebar-close-btn"
+            @click="isSidebarOpen = false"
+          >
+            ✕
+          </button>
+          <h2>ผังร้าน</h2>
+        </div>
       </div>
 
-      <!-- Grid Size Control -->
-      <div class="panel">
-        <div class="panel-title">⚙️ Grid Settings</div>
-        
-        <label class="checkbox-row">
-          <input type="checkbox" v-model="showGridLines" />
-          <span>แสดงเส้น Grid</span>
-        </label>
-      </div>
+      
 
       <!-- Add Table -->
       <div class="panel">
-        <div class="panel-title">🪑 เพิ่มโต๊ะ</div>
+        <div class="panel-title">เพิ่มโต๊ะ</div>
         <div class="form-group">
           <label>ราคา (บาท)</label>
           <input v-model.number="newTable.price" type="number" min="0" step="1" placeholder="0" />
@@ -28,7 +31,7 @@
         <button @click="addTable" class="btn-add-table" :disabled="addingTable">
           {{ addingTable ? '...' : '+ เพิ่มโต๊ะ' }}
         </button>
-        <p class="hint">โต๊ะจะถูกวางกลาง ลากไปวางตามต้องการ</p>
+       
       </div>
 
       <!-- Add Floor Items -->
@@ -38,6 +41,7 @@
           <button v-for="el in elementTypes" :key="el.type" @click="addFloorItem(el)" class="btn-element">
             
             <span class="el-label">{{ el.label }}</span>
+            
           </button>
         </div>
       </div>
@@ -87,19 +91,25 @@
     <!-- Canvas -->
     <div class="canvas-wrapper">
       <div class="canvas-toolbar">
+        <button
+          v-if="!isSidebarOpen"
+          class="open-sidebar-btn"
+          @click="isSidebarOpen = true"
+        >
+          ☰ เมนู
+        </button>
         <div class="zoom-controls">
           <button @click="zoomOut">−</button>
           <span>{{ Math.round(zoom * 70) }}%</span>
           <button @click="zoomIn">+</button>
           <button @click="resetZoom">Reset</button>
         </div>
-        <span class="canvas-title">
-          ผังร้าน
-        </span>
         <span class="canvas-hint">
-          {{ tables.length }} โต๊ะ · {{ floorItems.length }} elements
-        
+          {{ tables.length }} โต๊ะ 
         </span>
+        <router-link to="/dashboard" class="btn-back">
+          ← กลับหน้าหลัก
+        </router-link>
       </div>
       <div class="canvas-scroll">
         <!-- BUG 1 แก้: ย้าย event handlers มาที่ div ใน canvas-scroll แทน canvas-scroll -->
@@ -175,10 +185,25 @@
   import { tableApi } from '../api/auth'
 
   // ---- Constants ----
-    /*const canvasWidth.value = 1000
-    const canvasHeight.value = 1000*/
     const CANVAS_PADDING = 50
-  // ---- State ----
+  //Sidebar ตรวจขนาดจอ
+    const isSidebarOpen = ref(true)
+    const isMobile = ref(false)
+
+    function checkScreen() {
+      isMobile.value = window.innerWidth <= 768
+      if (isMobile.value) {
+        isSidebarOpen.value = false
+      } else {
+        isSidebarOpen.value = true
+      }
+    }
+
+onMounted(() => {
+  checkScreen()
+  window.addEventListener('resize', checkScreen)
+})
+    // ---- State ----
     const tables = ref([])
     const floorItems = ref([])
     const selected = ref(null)
@@ -672,13 +697,54 @@ dragOffsetY = pointerY - item.pos_y
 </script>
 
 <style scoped>
-  .editor-page { display: flex; height: 100vh; overflow: hidden; background: #f0f2f8; }
+  .editor-page {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
 
-   .sidebar {
-    width: 20%; flex-shrink: 0; background: white;
-    box-shadow: 2px 0 12px rgba(0,0,0,0.1); overflow-y: auto;
-    display: flex; flex-direction: column;
-  } 
+/* Desktop ปกติ */
+  .sidebar {
+    width: 300px;
+    background: white;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+/* Mobile mode */
+
+  @media (max-width: 768px) {
+    .editor-page {
+      position: relative;
+    }
+    .canvas-scroll {
+      align-items: flex-start; /* ⭐ ไม่ต้องจัดกลางแนวตั้งบนมือถือ */
+      justify-content: flex-start;
+    }
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
+      width: 30%;
+      max-width: 320px;
+      z-index: 1000;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+    }
+
+  .sidebar.open {
+      transform: translateX(0);
+  }
+  }
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 999;
+  }
   .canvas {
   cursor: grab;
 }
@@ -691,17 +757,6 @@ dragOffsetY = pointerY - item.pos_y
     height: 100vh; 
     overflow: hidden; 
     background: #f0f2f8; 
-  }
-
-  @media (max-width: 768px) {
-    .editor-page { flex-direction: column; }
-    .sidebar {
-      width: 100%;
-      height: 40vh; /* Takes top 40% of screen */
-      border-right: none;
-      border-bottom: 2px solid #ddd;
-    }
-    .canvas-wrapper { height: 60vh; }
   }
 
   .sidebar-header { padding: 15px 20px; border-bottom: 2px solid #f0f0f0; }
@@ -849,12 +904,7 @@ dragOffsetY = pointerY - item.pos_y
   .table-node, .floor-item {
     touch-action: none; /* Critical: Stops browser from scrolling while dragging items */
   }
-  @media (max-width: 768px) {
-    .canvas-scroll {
-      align-items: flex-start; /* ⭐ ไม่ต้องจัดกลางแนวตั้งบนมือถือ */
-      justify-content: flex-start;
-    }
-  }
+ 
     .floor-background {
       position: absolute;
       background: #ffffff;
