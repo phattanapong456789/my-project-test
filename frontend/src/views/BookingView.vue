@@ -4,10 +4,10 @@
 
       <!-- Header -->
       <div class="page-header">
-        <div>
-          <router-link to="/dashboard" class="btn-back">← กลับ</router-link>
+        
+          <router-link to="/dashboard" class="btn-my">← กลับ</router-link>
           <h1>🍺 จองโต๊ะ</h1>
-        </div>
+        
         <router-link to="/my-reservations" class="btn-my">📋 การจองของฉัน</router-link>
       </div>
 
