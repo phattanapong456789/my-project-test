@@ -1,8 +1,95 @@
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* ========================================
+   NOIR — Dark Luxury Design System
+   ======================================== */
+
+:root {
+  /* Backgrounds */
+  --bg-base:      #07070f;
+  --bg-surface:   #0e0e1c;
+  --bg-elevated:  #141428;
+  --bg-glass:     rgba(14,14,28,0.75);
+
+  /* Accents */
+  --gold:         #c9a84c;
+  --gold-light:   #f0c96a;
+  --gold-dim:     rgba(201,168,76,0.15);
+  --gold-border:  rgba(201,168,76,0.25);
+  --purple:       #8b5cf6;
+  --purple-dim:   rgba(139,92,246,0.15);
+  --cyan:         #06b6d4;
+  --green:        #10b981;
+  --red:          #ef4444;
+  --orange:       #f59e0b;
+
+  /* Text */
+  --text-primary:   #f0e6d3;
+  --text-secondary: #a89880;
+  --text-muted:     #4b5563;
+  --text-white:     #ffffff;
+
+  /* Borders */
+  --border:         rgba(201,168,76,0.2);
+  --border-subtle:  rgba(255,255,255,0.06);
+  --border-strong:  rgba(201,168,76,0.45);
+
+  /* Shadows */
+  --shadow-gold:    0 0 24px rgba(201,168,76,0.15);
+  --shadow-deep:    0 20px 60px rgba(0,0,0,0.7);
+  --shadow-card:    0 8px 32px rgba(0,0,0,0.5);
+
+  /* Radii */
+  --radius-sm:  8px;
+  --radius-md:  14px;
+  --radius-lg:  20px;
+  --radius-xl:  28px;
+}
+
+/* ---- Reset ---- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
 
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
   min-height: 100vh;
-  color: #333;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--gold-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ---- Global Utility Classes ---- */
+.glass-card {
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* ---- Spinner Animation ---- */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(201,168,76,0.2); }
+  50%       { box-shadow: 0 0 40px rgba(201,168,76,0.45); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes bgShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
