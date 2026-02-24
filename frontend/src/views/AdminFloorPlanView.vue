@@ -98,12 +98,7 @@
         >
           ☰ เมนู
         </button>
-        <div class="zoom-controls">
-          <button @click="zoomOut">−</button>
-          <span>{{ Math.round(zoom * 70) }}%</span>
-          <button @click="zoomIn">+</button>
-          <button @click="resetZoom">Reset</button>
-        </div>
+        <h3>ผังร้าน</h3>
         <span class="canvas-hint">
           {{ tables.length }} โต๊ะ 
         </span>

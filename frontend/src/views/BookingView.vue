@@ -42,8 +42,20 @@
 
         <div v-if="loadingFloor" class="loading-floor">กำลังโหลดผัง...</div>
 
-        <div v-else class="floor-scroll">
-          <div class="floor-canvas" ref="floorCanvas">
+        <div
+          ref="viewportRef"
+          class="floor-viewport"
+          @wheel.prevent="onWheel"
+          @mousedown="startPan"
+          @touchstart="onTouchStart"
+          @touchmove.prevent="onTouchMove"
+          @touchend="onTouchEnd"
+        >
+          <div
+            class="floor-canvas"
+            ref="floorCanvas"
+            :style="canvasStyle"
+          >
 
             <!-- Floor Items -->
             <div
@@ -70,7 +82,7 @@
             >
               
               <div class="t-name">{{ t.number }}</div>
-              <div v-if="t.price > 0" class="t-price">฿{{ t.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</div>
+              <div v-if="t.price > 0" class="t-price">{{ t.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}฿</div>
               
               <div v-if="t.is_booked" class="t-booked-tag">ไม่ว่าง</div>
             </div>
@@ -91,7 +103,7 @@
               <strong>โต๊ะ {{ selectedTable.number }}</strong>
               <div class="sel-sub-row">
                 <span class="sel-sub">{{ selectedTable.seats }} ที่นั่ง</span>
-                <span v-if="selectedTable.price > 0" class="sel-price">฿{{ selectedTable.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</span>
+                <span v-if="selectedTable.price > 0" class="sel-price">{{ selectedTable.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}฿</span>
               </div>
             </div>
           </div>
@@ -115,10 +127,10 @@
         <div v-if="bookError" class="alert-error">⚠️ {{ bookError }}</div>
         <!-- เพิ่ม modal -->
         <div v-if="showConfirm" class="modal-overlay">
-          <div class="modal-box">
-            <p>ยืนยันการจองโต๊ะใช่ไหม?</p>
-            <button @click="handleBook(); showConfirm = false">✅ ยืนยัน</button>
-            <button @click="showConfirm = false">❌ ยกเลิก</button>
+          <div class="modal">
+            <h4>ยืนยันการจองโต๊ะใช่ไหม?</h4>
+            <button class="btn-book" @click="handleBook(); showConfirm = false">✅ ยืนยัน</button>
+            <button class="btn-book" @click="showConfirm = false">❌ ยกเลิก</button>
           </div>
         </div>
 
@@ -167,6 +179,182 @@ const bookError = ref(null)
 const successRes = ref(null)
 const showConfirm = ref(false)
 const selectedTable = computed(() => tables.value.find(t => t.id === selectedTableId.value))
+
+let lastDistance = 0
+const zoom = ref(1)
+const minZoom = 0.5
+const maxZoom = 3
+
+const panX = ref(0)
+const panY = ref(0)
+
+const isPanning = ref(false)
+let startX = 0
+let startY = 0
+
+const padding = 50
+const viewportRef = ref(null)
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max)
+}
+const panBounds = computed(() => {
+  if (!viewportRef.value) return null
+
+  const vw = viewportRef.value.clientWidth
+  const vh = viewportRef.value.clientHeight
+
+  const scaledWidth = canvasWidth.value * zoom.value
+  const scaledHeight = canvasHeight.value * zoom.value
+
+  return {
+    minX: Math.min(0, vw - scaledWidth),
+    maxX: 0,
+    minY: Math.min(0, vh - scaledHeight),
+    maxY: 0
+  }
+})
+
+const canvasWidth = computed(() => {
+  const allItems = [
+    ...floorItems.value,
+    ...tables.value
+  ]
+
+  if (!allItems.length) return 900
+
+  const maxX = Math.max(
+    ...allItems.map(item =>
+      (item.pos_x || 0) + (item.width || 50)
+    )
+  )
+
+  return maxX + padding
+})
+
+const canvasHeight = computed(() => {
+  const allItems = [
+    ...floorItems.value,
+    ...tables.value
+  ]
+
+  if (!allItems.length) return 580
+
+  const maxY = Math.max(
+    ...allItems.map(item =>
+      (item.pos_y || 0) + (item.height || 50)
+    )
+  )
+
+  return maxY + padding
+})
+
+const canvasStyle = computed(() => ({
+  width: `${canvasWidth.value}px`,
+  height: `${canvasHeight.value}px`,
+  transform: `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})`,
+  transformOrigin: '0 0'
+}))
+function onWheel(e) {
+  const zoomSpeed = 0.001
+  const newZoom = zoom.value - e.deltaY * zoomSpeed
+
+  zoom.value = Math.min(maxZoom, Math.max(minZoom, newZoom))
+
+  // 👇 clamp ใหม่หลัง zoom
+  if (panBounds.value) {
+    panX.value = clamp(panX.value, panBounds.value.minX, panBounds.value.maxX)
+    panY.value = clamp(panY.value, panBounds.value.minY, panBounds.value.maxY)
+  }
+}
+function startPan(e) {
+  if (e.target.closest('.table-node')) return
+
+  isPanning.value = true
+  startX = e.clientX - panX.value
+  startY = e.clientY - panY.value
+
+  window.addEventListener('mousemove', onPanMove)
+  window.addEventListener('mouseup', stopPan)
+}
+
+function onPanMove(e) {
+  if (!isPanning.value || !panBounds.value) return
+
+  const newX = e.clientX - startX
+  const newY = e.clientY - startY
+
+  panX.value = clamp(
+    newX,
+    panBounds.value.minX,
+    panBounds.value.maxX
+  )
+
+  panY.value = clamp(
+    newY,
+    panBounds.value.minY,
+    panBounds.value.maxY
+  )
+}
+
+function stopPan() {
+  isPanning.value = false
+  window.removeEventListener('mousemove', onPanMove)
+  window.removeEventListener('mouseup', stopPan)
+}
+function getDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX
+  const dy = touches[0].clientY - touches[1].clientY
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+function onTouchStart(e) {
+  if (e.touches.length === 1) {
+    startX = e.touches[0].clientX - panX.value
+    startY = e.touches[0].clientY - panY.value
+  }
+
+  if (e.touches.length === 2) {
+    lastDistance = getDistance(e.touches)
+  }
+}
+
+function onTouchMove(e) {
+  if (!panBounds.value) return
+
+  if (e.touches.length === 1) {
+    const newX = e.touches[0].clientX - startX
+    const newY = e.touches[0].clientY - startY
+
+    panX.value = clamp(
+      newX,
+      panBounds.value.minX,
+      panBounds.value.maxX
+    )
+
+    panY.value = clamp(
+      newY,
+      panBounds.value.minY,
+      panBounds.value.maxY
+    )
+  }
+
+  if (e.touches.length === 2) {
+    const newDistance = getDistance(e.touches)
+    const scaleFactor = newDistance / lastDistance
+
+    zoom.value = Math.min(
+      maxZoom,
+      Math.max(minZoom, zoom.value * scaleFactor)
+    )
+
+    lastDistance = newDistance
+  }
+}
+
+function onTouchEnd() {
+  lastDistance = 0
+}
 
 async function loadFloorPlan() {
   if (!selectedDate.value) return
@@ -271,8 +459,8 @@ input:focus { border-color: #667eea; }
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fffbeb;
-  border: 1.5px solid #fcd34d;
+  background: #ffc558;
+  border: 1.5px solid #f3e5b9;
   border-radius: 12px;
   padding: 12px 16px;
 }
@@ -284,23 +472,35 @@ input:focus { border-color: #667eea; }
 .floor-card { padding: 24px; }
 .floor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; }
-.leg { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; color: #666; }
+.leg { display: flex; align-items: center; gap: 5px; font-size: 0.8rem; color: #0a0a0a; }
 .dot { width: 10px; height: 10px; border-radius: 50%; }
-.dot-free { background: #667eea; }
-.dot-booked { background: #cbd5e0; }
-.dot-sel { background: #f6ad55; }
+.dot-free { background: #2855d3; }
+.dot-booked { background: #d41b1b; }
+.dot-sel { background: #f39c29; }
 
 .loading-floor { text-align: center; color: #888; padding: 60px; }
 
-.floor-scroll { overflow: auto; border-radius: 12px; border: 2px solid #e8e8e8; }
+.floor-viewport {
+  width: 100%;
+  height: 600px;
+  overflow: hidden;
+  position: relative;
+  border-radius: 12px;
+  border: 2px solid #ffffff;
+  touch-action: none;
+  cursor: grab;
+  background: #f9fafd;
+}
+
+.floor-viewport:active {
+  cursor: grabbing;
+}
 .floor-canvas {
   position: relative;
-  width: 900px;
-  height: 580px;
   background:
-    radial-gradient(circle, #d0d4e8 1px, transparent 1px);
+    radial-gradient(circle, #fcfcfc 1px, transparent 1px);
   background-size: 24px 24px;
-  background-color: #f4f5fb;
+  background-color: hsl(55, 53%, 92%);
 }
 
 .floor-item {
@@ -357,18 +557,18 @@ input:focus { border-color: #667eea; }
 .is-selected .t-num { color: white; }
 .t-name { font-size: 0.9rem; color: #070707; font-weight: 600; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; line-height: 1; }
 .is-selected .t-name { color: rgba(255,255,255,0.85); }
-.t-price { font-size: 0.55rem; color: #667eea; font-weight: 600; margin-top: 1px; line-height: 1; }
+.t-price { font-size: 0.7rem; color: #667eea; font-weight: 600; margin-top: 10%; line-height: 1; }
 .is-selected .t-price { color: rgba(255,255,255,0.9); }
 .t-seats { font-size: 0.62rem; color: #aaa; }
 .is-selected .t-seats { color: rgba(255,255,255,0.7); }
-.t-booked-tag { font-size: 0.5rem; background: #fed7d7; color: #c53030; padding: 1px 4px; border-radius: 4px; margin-top: 2px; }
+.t-booked-tag { font-size: 0.5rem; background: #ff0000; color: #ffffff; padding: 1px 4px; border-radius: 4px; margin-top: 2px; }
 
 .empty-canvas {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: #aaa;
+  color: #b9b7b7;
   font-size: 0.95rem;
   line-height: 1.8;
 }
