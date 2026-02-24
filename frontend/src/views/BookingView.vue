@@ -120,10 +120,6 @@
           <div class="sum-row"><span>👥 ที่นั่ง</span><strong>{{ selectedTable?.seats }} คน</strong></div>
           <div v-if="selectedTable?.price > 0" class="sum-row"><span>💰 ราคา</span><strong class="price-highlight">฿{{ selectedTable.price.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</strong></div>
         </div>
-        <div class="form-group" style="margin-top:16px">
-          <label>หมายเหตุ (ไม่บังคับ)</label>
-          <input v-model="note" type="text" placeholder="เช่น วันเกิด, ขอเค้ก..." />
-        </div>
         <div v-if="bookError" class="alert-error">⚠️ {{ bookError }}</div>
         <!-- เพิ่ม modal -->
         <div v-if="showConfirm" class="modal-overlay">
