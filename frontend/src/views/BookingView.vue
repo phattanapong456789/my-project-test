@@ -42,7 +42,7 @@
         <div ref="viewportRef" class="floor-viewport" @wheel.prevent="onWheel" @mousedown="startPan" @touchstart="onTouchStart" @touchmove.prevent="onTouchMove" @touchend="onTouchEnd">
           <div class="floor-canvas" ref="floorCanvas" :style="canvasStyle">
             <div v-for="fi in floorItems" :key="'fi-'+fi.id" class="floor-item" :class="`fi-${fi.type}`" :style="{left:fi.pos_x+'px',top:fi.pos_y+'px',width:fi.width+'px',height:fi.height+'px'}">{{ fi.label }}</div>
-            <div v-for="t in tables" :key="'t-'+t.id" class="table-node" :class="{'is-booked':t.is_booked,'is-selected':selectedTableId===t.id}" :style="{left:t.pos_x+'px',top:t.pos_y+'px'}" @click="selectTable(t)">
+            <div v-for="t in tables" :key="'t-'+t.id" class="table-node" :class="{'is-booked':t.is_booked,'is-selected':selectedTableIds.includes(t.id)}" :style="{left:t.pos_x+'px',top:t.pos_y+'px'}" @click="selectTable(t)">
               <div class="t-name">{{ t.number }}</div>
               <div v-if="t.price>0" class="t-price">{{ t.price.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}) }}฿</div>
               <div v-if="t.is_booked" class="t-booked-tag">ไม่ว่าง</div>
@@ -50,14 +50,14 @@
             <div v-if="tables.length===0" class="empty-canvas">ยังไม่มีโต๊ะในผัง<br><small>ติดต่อแอดมินเพื่อตั้งค่าผังร้าน</small></div>
           </div>
         </div>
-        <div v-if="selectedTable" class="selected-info">
+        <div v-if="selectedTables.length > 0" class="selected-info">
           <div class="sel-detail">
             <Armchair :size="22" class="sel-icon" />
             <div>
-              <strong>โต๊ะ {{ selectedTable.number }}</strong>
+              <strong>โต๊ะ {{ selectedTables.map(t => t.number).join(', ') }}</strong>
               <div class="sel-sub-row">
-                <span class="sel-sub">{{ selectedTable.seats }} ที่นั่ง</span>
-                <span v-if="selectedTable.price>0" class="sel-price">{{ selectedTable.price.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}) }}฿</span>
+                <span class="sel-sub">{{ selectedTables.reduce((sum, t) => sum + t.seats, 0) }} ที่นั่ง</span>
+                <span v-if="selectedTables.some(t => t.price>0)" class="sel-price">{{ selectedTables.reduce((sum, t) => sum + t.price, 0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}) }}฿</span>
               </div>
             </div>
           </div>
@@ -65,14 +65,14 @@
       </div>
 
       <!-- Step 3 -->
-      <div v-if="selectedTableId" class="card">
+      <div v-if="selectedTableIds.length > 0" class="card">
         <h2 class="step-title"><span class="step-num">3</span> ยืนยันการจอง</h2>
         <div class="summary-box">
           <div class="sum-row"><span><CalendarDays :size="14" /> วันที่</span><strong>{{ formatDateThai(selectedDate) }}</strong></div>
           <div class="sum-row"><span><Clock :size="14" /> เวลารับโต๊ะ</span><strong>ก่อน 21:00 น.</strong></div>
-          <div class="sum-row"><span><Armchair :size="14" /> โต๊ะ</span><strong>{{ selectedTable?.number }}</strong></div>
-          <div class="sum-row"><span><Users :size="14" /> ที่นั่ง</span><strong>{{ selectedTable?.seats }} คน</strong></div>
-          <div v-if="selectedTable?.price>0" class="sum-row"><span><Banknote :size="14" /> ราคา</span><strong class="price-highlight">฿{{ selectedTable.price.toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}) }}</strong></div>
+          <div class="sum-row"><span><Armchair :size="14" /> โต๊ะ</span><strong>{{ selectedTables.map(t => t.number).join(', ') }}</strong></div>
+          <div class="sum-row"><span><Users :size="14" /> ที่นั่ง</span><strong>{{ selectedTables.reduce((sum, t) => sum + t.seats, 0) }} คน</strong></div>
+          <div v-if="selectedTables.some(t => t.price>0)" class="sum-row"><span><Banknote :size="14" /> ราคา</span><strong class="price-highlight">฿{{ selectedTables.reduce((sum, t) => sum + t.price, 0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:0}) }}</strong></div>
         </div>
         <div v-if="bookError" class="alert-error"><AlertTriangle :size="14" /> {{ bookError }}</div>
 
@@ -80,7 +80,7 @@
           <div class="modal">
             <div class="modal-icon"><Wine :size="32" /></div>
             <h3>ยืนยันการจองโต๊ะ?</h3>
-            <p>โต๊ะ {{ selectedTable?.number }} · {{ formatDateThai(selectedDate) }}</p>
+            <p>โต๊ะ {{ selectedTables.map(t => t.number).join(', ') }} · {{ formatDateThai(selectedDate) }}</p>
             <div class="modal-btns">
               <button class="btn-confirm-yes" @click="handleBook();showConfirm=false"><Check :size="14" /> ยืนยัน</button>
               <button class="btn-confirm-no" @click="showConfirm=false">ยกเลิก</button>
@@ -103,7 +103,7 @@
         <h2>จองสำเร็จ!</h2>
         <p class="success-sub">รอการยืนยันจากทางร้าน<br>เมื่อยืนยันแล้ว กรุณามาก่อน <strong>21:00 น.</strong></p>
         <div class="success-info">
-          <div class="sum-row"><span>โต๊ะ</span><strong>{{ successRes.table.number }}</strong></div>
+          <div class="sum-row"><span>โต๊ะ</span><strong>{{ successRes.tables.map(t => t.number).join(', ') }}</strong></div>
           <div class="sum-row"><span>วันที่</span><strong>{{ formatDateThai(successRes.reserved_at.split('T')[0]) }}</strong></div>
           <div class="sum-row"><span>สถานะ</span><span class="badge-pending"><Clock :size="11" /> รอยืนยัน</span></div>
         </div>
@@ -123,7 +123,7 @@ import { ArrowLeft, CalendarDays, Clock, Armchair, Users, Banknote, AlertTriangl
 
 const today = new Date().toISOString().split('T')[0]
 const selectedDate = ref('')
-const selectedTableId = ref(null)
+const selectedTableIds = ref([])
 const note = ref('')
 const tables = ref([])
 const floorItems = ref([])
@@ -132,7 +132,7 @@ const booking = ref(false)
 const bookError = ref(null)
 const successRes = ref(null)
 const showConfirm = ref(false)
-const selectedTable = computed(() => tables.value.find(t => t.id === selectedTableId.value))
+const selectedTables = computed(() => tables.value.filter(t => selectedTableIds.value.includes(t.id)))
 
 let lastDistance = 0
 const zoom = ref(1), minZoom = 0.5, maxZoom = 3
@@ -158,11 +158,11 @@ function getDist(t) { const dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].cl
 function onTouchStart(e) { if(e.touches.length===1){startX=e.touches[0].clientX-panX.value;startY=e.touches[0].clientY-panY.value} if(e.touches.length===2)lastDistance=getDist(e.touches) }
 function onTouchMove(e) { if(!panBounds.value)return; if(e.touches.length===1){panX.value=clamp(e.touches[0].clientX-startX,panBounds.value.minX,panBounds.value.maxX);panY.value=clamp(e.touches[0].clientY-startY,panBounds.value.minY,panBounds.value.maxY)} if(e.touches.length===2){const d=getDist(e.touches);zoom.value=Math.min(maxZoom,Math.max(minZoom,zoom.value*(d/lastDistance)));lastDistance=d} }
 function onTouchEnd() { lastDistance=0 }
-async function loadFloorPlan() { if(!selectedDate.value)return; loadingFloor.value=true; selectedTableId.value=null; try{const res=await tableApi.getFloorPlan(selectedDate.value);tables.value=res.data.tables||[];floorItems.value=res.data.floor_items||[]}catch{tables.value=[];floorItems.value=[]}finally{loadingFloor.value=false} }
-function selectTable(t) { if(t.is_booked)return; selectedTableId.value=t.id }
+async function loadFloorPlan() { if(!selectedDate.value)return; loadingFloor.value=true; selectedTableIds.value=[]; try{const res=await tableApi.getFloorPlan(selectedDate.value);tables.value=res.data.tables||[];floorItems.value=res.data.floor_items||[]}catch{tables.value=[];floorItems.value=[]}finally{loadingFloor.value=false} }
+function selectTable(t) { if(t.is_booked)return; const idx = selectedTableIds.value.indexOf(t.id); if(idx > -1) selectedTableIds.value.splice(idx, 1); else selectedTableIds.value.push(t.id); }
 function formatDateThai(s) { if(!s)return''; const d=s.length>10?new Date(s):new Date(s+'T00:00:00'); return d.toLocaleDateString('th-TH',{weekday:'long',year:'numeric',month:'long',day:'numeric'}) }
-async function handleBook() { if(!selectedTableId.value)return; booking.value=true; bookError.value=null; try{const res=await tableApi.createReservation({table_id:selectedTableId.value,date:selectedDate.value,note:note.value});successRes.value=res.data}catch(e){bookError.value=e.response?.data?.error||'เกิดข้อผิดพลาด กรุณาลองใหม่'}finally{booking.value=false} }
-function resetBook() { successRes.value=null; selectedTableId.value=null; note.value=''; bookError.value=null; loadFloorPlan() }
+async function handleBook() { if(selectedTableIds.value.length===0)return; booking.value=true; bookError.value=null; const successfulTables=[]; const errors=[]; for(const t of selectedTables.value){ try{ await tableApi.createReservation({table_id:t.id,date:selectedDate.value,note:note.value}); successfulTables.push(t); }catch(e){ errors.push(`โต๊ะ ${t.number}: ${e.response?.data?.error||'เกิดข้อผิดพลาด'}`); } } booking.value=false; if(successfulTables.length>0){ successRes.value={tables:successfulTables,reserved_at:selectedDate.value}; if(errors.length>0) bookError.value=errors.join(', '); }else{ bookError.value=errors.join(', '); } }
+function resetBook() { successRes.value=null; selectedTableIds.value=[]; note.value=''; bookError.value=null; loadFloorPlan() }
 </script>
 
 <style scoped>

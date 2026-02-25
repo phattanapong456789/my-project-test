@@ -9,8 +9,8 @@
           <Wine :size="16" />
           <span class="brand-name">NOIR</span>
         </div>
-        <h1>ยินดีต้อนรับกลับ</h1>
-        <p>เข้าสู่ประสบการณ์พิเศษของคุณ</p>
+        <h1>ยินดีต้อนรับ</h1>
+        
       </div>
 
       <form @submit.prevent="handleLogin">

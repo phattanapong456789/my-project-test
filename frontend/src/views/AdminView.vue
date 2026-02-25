@@ -41,7 +41,7 @@
               <td class="td-email">{{ u.email }}</td>
               <td>
                 <span class="role-badge" :class="u.role==='admin'?'badge-admin':'badge-user'">
-                  <Crown v-if="u.role==='admin'" :size="10}" />
+                  <Crown v-if="u.role==='admin'" :size="10" />
                   <User v-else :size="10" />
                   {{ u.role==='admin'?'Admin':'User' }}
                 </span>
