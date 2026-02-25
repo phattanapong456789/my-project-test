@@ -20,8 +20,16 @@
       <div class="panel">
         <div class="panel-title">เพิ่มโต๊ะ</div>
         <div class="form-group">
+          <label>ที่นั่ง (ค่าเริ่มต้น)</label>
+          <input v-model.number="defaultTableSeats" type="number" min="1" step="1" />
+        </div>
+        <div class="form-group">
           <label>ราคา (บาท)</label>
           <input v-model.number="newTable.price" type="number" min="0" step="1" placeholder="0" />
+        </div>
+        <div class="form-group">
+          <label>ที่นั่ง</label>
+          <input v-model.number="newTable.seats" type="number" min="1" step="1" />
         </div>
         <button @click="addTable" class="btn-add-table" :disabled="addingTable">
           {{ addingTable ? '...' : '+ เพิ่มโต๊ะ' }}
@@ -53,6 +61,10 @@
           <div class="form-group">
             <label>เลขโต๊ะ</label>
             <input v-model.number="selected.number" disabled style="background: #f5f5f5;" />
+          </div>
+          <div class="form-group">
+            <label>ที่นั่ง</label>
+            <input v-model.number="selected.seats" type="number" min="1" step="1" @input="saveTableEdit" />
           </div>
           <div class="form-group">
             <label>ราคา (บาท)</label>
@@ -155,8 +167,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { tableApi } from '../api/auth'
+import { X, Plus, Settings, Trash2, Menu, ArrowLeft } from 'lucide-vue-next'
 
 // ---- Constants ----
 const CANVAS_PADDING = 50
@@ -176,28 +189,46 @@ function checkScreen() {
 onMounted(() => {
   checkScreen()
   window.addEventListener('resize', checkScreen)
+
+  // reset default seats to 4 (once)
+  if (!localStorage.getItem('default_table_seats_reset_4_v1')) {
+    localStorage.setItem('default_table_seats', '4')
+    localStorage.setItem('default_table_seats_reset_4_v1', '1')
+  }
+
+  defaultTableSeats.value = Number(localStorage.getItem('default_table_seats') || 4)
+  if (!newTable.value.seats || newTable.value.seats <= 0) {
+    newTable.value.seats = defaultTableSeats.value
+  }
 })
 // ---- State ----
 const tables = ref([])
 const floorItems = ref([])
 const selected = ref(null)
 const addingTable = ref(false)
-const newTable = ref({ price: 0 })
+const defaultTableSeats = ref(Number(localStorage.getItem('default_table_seats') || 4))
+const newTable = ref({ price: 0, seats: defaultTableSeats.value })
+
 const canvas = ref(null)
 const isDragging = ref(false)   // BUG 3 แก้: ลบ let isDragging ออก เหลือแค่ ref นี้
 const ghostCell = ref(null)
 const gridSize = ref(24)
 const showGridLines = ref(true)
 
+let saveTimer = null
 let dragging = null
 let dragOffsetX = 0
 let dragOffsetY = 0
-let saveTimer = null
 
-//เลื่อน-ซูม บนcanvas
+const panX = ref(0)
+const panY = ref(0)
+const zoom = ref(1)
+const MIN_ZOOM = 0.4
+const MAX_ZOOM = 2.5
+
 const isPanning = ref(false)
-let panStartX = 0
-let panStartY = 0
+let panStartClientX = 0
+let panStartClientY = 0
 let panOriginX = 0
 let panOriginY = 0
 
@@ -205,112 +236,73 @@ let panTouchStartX = 0
 let panTouchStartY = 0
 let panTouchOriginX = 0
 let panTouchOriginY = 0
-
-const zoom = ref(1)
-const MIN_ZOOM = 0.5
-const MAX_ZOOM = 3
-
-const panX = ref(0)
-const panY = ref(0)
-
 let lastTouchDistance = null
-function zoomIn() {
-  zoom.value = clamp(zoom.value + 0.1, MIN_ZOOM, MAX_ZOOM)
-}
 
-function zoomOut() {
-  zoom.value = clamp(zoom.value - 0.1, MIN_ZOOM, MAX_ZOOM)
-}
-
-function resetZoom() {
-  zoom.value = 1
-}
-function onWheelZoom(e) {
-  const rect = canvas.value.getBoundingClientRect()
-
-  const mouseX = e.clientX - rect.left
-  const mouseY = e.clientY - rect.top
-
-  const zoomAmount = -e.deltaY * 0.001
-  const newZoom = clamp(zoom.value + zoomAmount, MIN_ZOOM, MAX_ZOOM)
-
-  if (newZoom === zoom.value) return
-
-  // คำนวณตำแหน่งก่อน zoom
-  const worldX = (mouseX - panX.value) / zoom.value
-  const worldY = (mouseY - panY.value) / zoom.value
-
-  zoom.value = newZoom
-
-  // ปรับ pan ให้ zoom เข้าไปจุดเมาส์
-  panX.value = mouseX - worldX * newZoom
-  panY.value = mouseY - worldY * newZoom
-}
-function startPan(e) {
-  // ถ้ากำลังลาก item อยู่ ไม่ต้อง pan
-  if (dragging) return
-
-  isPanning.value = true
-
-  panStartX = e.clientX
-  panStartY = e.clientY
-
-  panOriginX = panX.value
-  panOriginY = panY.value
-
-  window.addEventListener('mousemove', onPanMove)
-  window.addEventListener('mouseup', stopPan)
-}
-function onPanMove(e) {
+function onPanMouseMove(e) {
   if (!isPanning.value) return
-
-  const dx = e.clientX - panStartX
-  const dy = e.clientY - panStartY
-
+  const dx = e.clientX - panStartClientX
+  const dy = e.clientY - panStartClientY
   panX.value = panOriginX + dx
   panY.value = panOriginY + dy
 }
-function stopPan() {
+
+function onPanMouseUp() {
+  if (!isPanning.value) return
   isPanning.value = false
-  window.removeEventListener('mousemove', onPanMove)
-  window.removeEventListener('mouseup', stopPan)
+  window.removeEventListener('mousemove', onPanMouseMove)
+  window.removeEventListener('mouseup', onPanMouseUp)
 }
+
 function handleCanvasMouseDown(e) {
-  // ถ้าคลิกโดนโต๊ะ หรือ floor-item → ไม่ pan
-  if (
-    e.target.closest('.table-node') ||
-    e.target.closest('.floor-item')
-  ) {
-    return
-  }
-
-  deselectAll()
-  startPan(e)
+  if (dragging) return
+  if (e.button !== 0) return
+  isPanning.value = true
+  panStartClientX = e.clientX
+  panStartClientY = e.clientY
+  panOriginX = panX.value
+  panOriginY = panY.value
+  window.addEventListener('mousemove', onPanMouseMove)
+  window.addEventListener('mouseup', onPanMouseUp)
 }
+
 function handleCanvasTouchStart(e) {
-  // ถ้ามี 2 นิ้ว → pinch zoom (ปล่อยให้ onTouchMove จัดการ)
-  if (e.touches.length === 2) return
-
-  const target = e.target
-
-  // ถ้าแตะโดนโต๊ะหรือ floor-item → ไม่ pan
-  if (
-    target.closest('.table-node') ||
-    target.closest('.floor-item')
-  ) {
-    return
-  }
-
-  deselectAll()
-
+  if (dragging) return
+  if (e.touches.length !== 1) return
   const touch = e.touches[0]
-
   isPanning.value = true
   panTouchStartX = touch.clientX
   panTouchStartY = touch.clientY
   panTouchOriginX = panX.value
   panTouchOriginY = panY.value
 }
+
+function onWheelZoom(e) {
+  if (!canvas.value) return
+  const rect = canvas.value.getBoundingClientRect()
+  const cx = e.clientX - rect.left
+  const cy = e.clientY - rect.top
+
+  const worldX = (cx - panX.value) / zoom.value
+  const worldY = (cy - panY.value) / zoom.value
+
+  const direction = e.deltaY > 0 ? -1 : 1
+  const factor = direction > 0 ? 1.08 : 0.92
+  const newZoom = clamp(zoom.value * factor, MIN_ZOOM, MAX_ZOOM)
+
+  zoom.value = newZoom
+  panX.value = cx - worldX * newZoom
+  panY.value = cy - worldY * newZoom
+}
+
+watch(defaultTableSeats, (v) => {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n <= 0) return
+  localStorage.setItem('default_table_seats', String(n))
+  if (!newTable.value.seats || newTable.value.seats <= 0) {
+    newTable.value.seats = n
+  }
+})
+
 // ---- Computed ----
 //สร้าง canvasWidth / canvasHeight แบบ dynamic
 //สร้าง canvasWidth / canvasHeight แบบ dynamic
@@ -389,6 +381,9 @@ onMounted(loadAll)
 onUnmounted(() => {
   window.removeEventListener('mousemove', onMouseMove)
   window.removeEventListener('mouseup', onMouseUp)
+
+  window.removeEventListener('mousemove', onPanMouseMove)
+  window.removeEventListener('mouseup', onPanMouseUp)
 })
 
 async function loadAll() {
@@ -407,11 +402,12 @@ async function addTable() {
     const cx = snap(canvasWidth.value / 2 - tableSize.value / 2, gridSize.value)
     const cy = snap(canvasHeight.value / 2 - tableSize.value / 2, gridSize.value)
     const res = await tableApi.adminCreateTable({
+      seats: newTable.value.seats || defaultTableSeats.value || 4,
       price: newTable.value.price || 0,
       pos_x: cx, pos_y: cy,
     })
     tables.value.push({ ...res.data, itemType: 'table' })
-    newTable.value = { price: 0 }
+    newTable.value = { price: 0, seats: defaultTableSeats.value }
   } finally {
     addingTable.value = false
   }
@@ -441,6 +437,7 @@ function saveTableEdit() {
   saveTimer = setTimeout(async () => {
     if (!selected.value || selected.value.itemType !== 'table') return
     await tableApi.adminUpdateTable(selected.value.id, {
+      seats: selected.value.seats,
       price: selected.value.price,
       is_active: selected.value.is_active,
     })
