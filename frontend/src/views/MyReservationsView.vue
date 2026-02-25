@@ -21,13 +21,13 @@
       </div>
 
       <div v-else class="res-list">
-        <div v-for="r in reservations" :key="r.id" class="res-card" :class="`s-${r.status}`">
+        <div v-for="r in groupedReservations" :key="r.id" class="res-card" :class="`s-${r.status}`">
           <div class="res-header">
             <div class="res-table">
               <div class="table-icon"><Armchair :size="20" /></div>
               <div>
-                <strong>โต๊ะ {{ r.table.number }}</strong>
-                <span class="seats-tag"><Users :size="10" /> {{ r.table.seats }} ที่นั่ง</span>
+                <strong>โต๊ะ {{ r.tables.map(t => t.number).join(', ') }}</strong>
+                <span class="seats-tag"><Users :size="10" /> {{ r.tables.reduce((sum, t) => sum + t.seats, 0) }} ที่นั่ง</span>
               </div>
             </div>
             <span class="status-badge" :class="`badge-${r.status}`">
@@ -61,13 +61,39 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { tableApi } from '../api/auth'
 import { ArrowLeft, Plus, CalendarOff, Armchair, Users, Clock, CheckCircle2, XCircle, Ban, CalendarDays, FileText, MessageSquare, X } from 'lucide-vue-next'
 
 const reservations = ref([])
 const loading = ref(false)
 const cancelling = ref(null)
+
+const groupedReservations = computed(() => {
+  const groups = {}
+  reservations.value.forEach(r => {
+    // Generate a grouping key based on reserved_at, status, and note
+    const key = `${r.reserved_at}_${r.status}_${r.note || ''}`
+    if (!groups[key]) {
+      groups[key] = {
+        id: r.id, // Use the first reservation's ID as the group's unique key
+        ids: [r.id],
+        reserved_at: r.reserved_at,
+        created_at: r.created_at, // take the earliest conceptually, though they are created at same time
+        status: r.status,
+        note: r.note,
+        admin_note: r.admin_note,
+        tables: [r.table]
+      }
+    } else {
+      groups[key].ids.push(r.id)
+      groups[key].tables.push(r.table)
+    }
+  })
+  
+  // Convert back to array and sort by reserved_at descending
+  return Object.values(groups).sort((a, b) => new Date(b.reserved_at) - new Date(a.reserved_at))
+})
 onMounted(load)
 
 async function load() {
@@ -76,10 +102,16 @@ async function load() {
   catch { reservations.value = [] }
   finally { loading.value = false }
 }
-async function cancelRes(r) {
-  if (!confirm(`ยืนยันยกเลิกการจอง "โต๊ะ ${r.table.number}" ?`)) return
-  cancelling.value = r.id
-  try { await tableApi.cancelReservation(r.id); r.status = 'cancelled' }
+async function cancelRes(group) {
+  if (!confirm(`ยืนยันยกเลิกการจอง "โต๊ะ ${group.tables.map(t => t.number).join(', ')}" ?`)) return
+  cancelling.value = group.id
+  try { 
+    await Promise.all(group.ids.map(id => tableApi.cancelReservation(id)))
+    // Update local state for all related reservations
+    reservations.value.forEach(r => {
+      if (group.ids.includes(r.id)) r.status = 'cancelled'
+    })
+  }
   catch (e) { alert(e.response?.data?.error || 'เกิดข้อผิดพลาด') }
   finally { cancelling.value = null }
 }

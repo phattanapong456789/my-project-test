@@ -55,13 +55,13 @@
               <span>เลือกทั้งหมด</span>
             </label>
           </div>
-          <div v-for="r in reservations" :key="r.id" class="res-row" :class="`status-${r.status}`">
+          <div v-for="r in groupedReservations" :key="r.id" class="res-row" :class="`status-${r.status}`">
             <label class="checkbox-wrap res-checkbox">
-              <input type="checkbox" :value="r.id" v-model="selectedIds" />
+              <input type="checkbox" :checked="isGroupSelected(r)" @change="toggleGroupSelection(r)" />
             </label>
             <div class="res-info">
               <div class="res-main">
-                <strong>โต๊ะ {{ r.table.number }}</strong>
+                <strong>โต๊ะ {{ r.tables.map(t => t.number).join(', ') }}</strong>
                 <span class="status-badge" :class="`badge-${r.status}`">
                   <Clock v-if="r.status==='pending'" :size="10" />
                   <CheckCircle2 v-if="r.status==='approved'" :size="10" />
@@ -107,7 +107,7 @@
           <XCircle v-else :size="28" />
         </div>
         <h2>{{ actionStatus==='approved'?'อนุมัติการจอง':'ปฏิเสธการจอง' }}</h2>
-        <p><strong>{{ actionTarget.user.name }}</strong> จอง <strong>โต๊ะ {{ actionTarget.table.number }}</strong><br>{{ formatDT(actionTarget.reserved_at) }}</p>
+        <p><strong>{{ actionTarget.user.name }}</strong> จอง <strong>โต๊ะ {{ actionTarget.tables.map(t => t.number).join(', ') }}</strong><br>{{ formatDT(actionTarget.reserved_at) }}</p>
         <div class="form-group" style="margin-top:14px;">
           <label>หมายเหตุถึงลูกค้า (ไม่บังคับ)</label>
           <input v-model="adminNote" type="text" placeholder="เช่น กรุณามาก่อนเวลา 15 นาที..." />
@@ -143,17 +143,70 @@ const actioning = ref(false)
 const actionError = ref(null)
 const selectedIds = ref([])
 const deleteConfirm = ref(false)
+
+const groupedReservations = computed(() => {
+  const groups = {}
+  reservations.value.forEach(r => {
+    // Generate grouping key based on user_id, reserved_at, status, and note
+    const key = `${r.user.id}_${r.reserved_at}_${r.status}_${r.note || ''}`
+    if (!groups[key]) {
+      groups[key] = {
+        id: r.id,
+        ids: [r.id],
+        user: r.user,
+        reserved_at: r.reserved_at,
+        status: r.status,
+        note: r.note,
+        admin_note: r.admin_note,
+        tables: [r.table]
+      }
+    } else {
+      groups[key].ids.push(r.id)
+      groups[key].tables.push(r.table)
+    }
+  })
+  return Object.values(groups).sort((a, b) => new Date(b.reserved_at) - new Date(a.reserved_at))
+})
 const deleting = ref(false)
 const isAllSelected = computed(()=>reservations.value.length>0&&selectedIds.value.length===reservations.value.length)
 function toggleSelectAll() { isAllSelected.value?selectedIds.value=[]:selectedIds.value=reservations.value.map(r=>r.id) }
+function isGroupSelected(group) { return group.ids.every(id => selectedIds.value.includes(id)) }
+function toggleGroupSelection(group) {
+  const allSelected = isGroupSelected(group)
+  if (allSelected) {
+    selectedIds.value = selectedIds.value.filter(id => !group.ids.includes(id))
+  } else {
+    const newIds = [...selectedIds.value]
+    group.ids.forEach(id => {
+      if (!newIds.includes(id)) newIds.push(id)
+    })
+    selectedIds.value = newIds
+  }
+}
 function deleteSelected() { if(selectedIds.value.length===0)return; deleteConfirm.value=true }
 async function confirmDelete() { deleting.value=true; try{ await tableApi.adminDeleteReservationsBulk(selectedIds.value); selectedIds.value=[]; deleteConfirm.value=false; load(); loadSummary() }catch(e){ actionError.value=e.response?.data?.error||'เกิดข้อผิดพลาด' }finally{ deleting.value=false } }
 onMounted(()=>{ loadSummary(); load() })
 async function loadSummary() { try{ const res=await tableApi.adminGetSummary(); summary.value=res.data }catch{} }
 async function load() { loading.value=true; selectedIds.value=[]; try{ const res=await tableApi.adminGetReservations(filterDate.value,filterStatus.value); reservations.value=res.data }finally{ loading.value=false } }
 function clearFilter() { filterDate.value=''; filterStatus.value=''; load() }
-function openAction(r,status) { actionTarget.value=r; actionStatus.value=status; adminNote.value=''; actionError.value=null }
-async function confirmAction() { actioning.value=true; actionError.value=null; try{ const res=await tableApi.adminUpdateStatus(actionTarget.value.id,actionStatus.value,adminNote.value); const idx=reservations.value.findIndex(r=>r.id===actionTarget.value.id); if(idx!==-1)reservations.value[idx]=res.data; actionTarget.value=null; loadSummary() }catch(e){ actionError.value=e.response?.data?.error||'เกิดข้อผิดพลาด' }finally{ actioning.value=false } }
+function openAction(group,status) { actionTarget.value=group; actionStatus.value=status; adminNote.value=''; actionError.value=null }
+async function confirmAction() {
+  actioning.value=true; actionError.value=null;
+  try {
+    await Promise.all(actionTarget.value.ids.map(id => tableApi.adminUpdateStatus(id, actionStatus.value, adminNote.value)))
+    
+    // Update local state
+    reservations.value.forEach(r => {
+      if (actionTarget.value.ids.includes(r.id)) {
+        r.status = actionStatus.value
+        r.admin_note = adminNote.value
+      }
+    })
+    
+    actionTarget.value=null; loadSummary()
+  } catch(e) { actionError.value=e.response?.data?.error||'เกิดข้อผิดพลาด' }
+  finally { actioning.value=false }
+}
 function statusLabel(s) { return{pending:'รอยืนยัน',approved:'ยืนยันแล้ว',rejected:'ปฏิเสธ',cancelled:'ยกเลิก'}[s]||s }
 function formatDT(dt) { return new Date(dt).toLocaleString('th-TH',{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) }
 </script>
