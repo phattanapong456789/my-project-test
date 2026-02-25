@@ -32,6 +32,7 @@ func main() {
 	log.Println("Cleanup scheduler started (runs daily at 02:00 AM)")
 
 	r := gin.Default()
+	r.Static("/uploads", "./uploads")
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
@@ -55,6 +56,7 @@ func main() {
 		{
 			protected.GET("/auth/me", auth.Me)
 			protected.PUT("/auth/change-password", auth.ChangePassword)
+			protected.POST("/reservations/upload-slip", reservation.UploadSlip)
 			protected.POST("/reservations", reservation.CreateReservation)
 			protected.GET("/reservations", reservation.GetMyReservations)
 			protected.DELETE("/reservations/:id", reservation.CancelReservation)

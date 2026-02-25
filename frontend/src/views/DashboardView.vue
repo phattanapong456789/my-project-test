@@ -26,7 +26,7 @@
           <router-link to="/my-reservations" class="nav-btn nav-btn-outline">
             <CalendarDays :size="14" /> การจองของฉัน
           </router-link>
-          <button @click="store.logout()" class="nav-btn nav-btn-danger">
+          <button @click="confirmLogout" class="nav-btn nav-btn-danger">
             <LogOut :size="14" /> ออกจากระบบ
           </button>
         </div>
@@ -147,6 +147,12 @@ async function copyToken() {
   await navigator.clipboard.writeText(token)
   copied.value = true
   setTimeout(() => copied.value = false, 2000)
+}
+
+function confirmLogout() {
+  const ok = window.confirm('ต้องการออกจากระบบใช่ไหม?')
+  if (!ok) return
+  store.logout()
 }
 </script>
 

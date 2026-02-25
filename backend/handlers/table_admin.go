@@ -4,6 +4,9 @@ import (
 	"auth-app/models"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +19,76 @@ type TableAdminHandler struct {
 
 func NewTableAdminHandler(db *gorm.DB) *TableAdminHandler {
 	return &TableAdminHandler{db: db}
+}
+
+func slipLocalPathFromURL(slipURL string) string {
+	if slipURL == "" {
+		return ""
+	}
+	rel := strings.TrimPrefix(slipURL, "/uploads/")
+	rel = filepath.Clean(rel)
+	if rel == "." || strings.HasPrefix(rel, "..") {
+		return ""
+	}
+	if !strings.HasPrefix(rel, "slips") {
+		return ""
+	}
+	return filepath.Join("uploads", rel)
+}
+
+func (h *TableAdminHandler) cleanupSlipIfUnusedByReservation(res models.Reservation) {
+	if res.SlipURL == "" {
+		return
+	}
+
+	q := h.db.Model(&models.Reservation{}).Where("slip_url = ?", res.SlipURL)
+	if res.BookingRef != "" {
+		q = q.Where("booking_ref = ?", res.BookingRef)
+	}
+
+	var remain int64
+	q.Count(&remain)
+	if remain > 0 {
+		return
+	}
+
+	path := slipLocalPathFromURL(res.SlipURL)
+	if path == "" {
+		return
+	}
+
+	_ = os.Remove(path)
+}
+
+func (h *TableAdminHandler) cleanupSlipIfBatchProcessed(res models.Reservation) {
+	if res.SlipURL == "" {
+		return
+	}
+
+	q := h.db.Model(&models.Reservation{}).
+		Where("slip_url = ?", res.SlipURL).
+		Where("status = ?", models.ReservationStatusPending)
+	if res.BookingRef != "" {
+		q = q.Where("booking_ref = ?", res.BookingRef)
+	}
+
+	var remainPending int64
+	q.Count(&remainPending)
+	if remainPending > 0 {
+		return
+	}
+
+	upd := h.db.Model(&models.Reservation{}).Where("slip_url = ?", res.SlipURL)
+	if res.BookingRef != "" {
+		upd = upd.Where("booking_ref = ?", res.BookingRef)
+	}
+	upd.Update("slip_url", "")
+
+	path := slipLocalPathFromURL(res.SlipURL)
+	if path == "" {
+		return
+	}
+	_ = os.Remove(path)
 }
 
 // GET /api/admin/tables
@@ -261,6 +334,10 @@ func (h *TableAdminHandler) UpdateReservationStatus(c *gin.Context) {
 	h.db.Model(&reservation).Updates(map[string]interface{}{
 		"status": input.Status, "admin_note": input.AdminNote,
 	})
+
+	if input.Status == models.ReservationStatusRejected {
+		h.cleanupSlipIfBatchProcessed(reservation)
+	}
 	h.db.Preload("User").Preload("Table").First(&reservation, reservation.ID)
 	c.JSON(http.StatusOK, toReservationResponse(reservation))
 }
@@ -273,6 +350,7 @@ func (h *TableAdminHandler) DeleteReservation(c *gin.Context) {
 		return
 	}
 	h.db.Delete(&reservation)
+	h.cleanupSlipIfUnusedByReservation(reservation)
 	c.JSON(http.StatusOK, gin.H{"message": "ลบการจองสำเร็จ"})
 }
 
@@ -289,7 +367,12 @@ func (h *TableAdminHandler) DeleteReservationsBulk(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ไม่มีรายการที่เลือก"})
 		return
 	}
+	var reservations []models.Reservation
+	h.db.Find(&reservations, input.IDs)
 	result := h.db.Delete(&models.Reservation{}, input.IDs)
+	for _, r := range reservations {
+		h.cleanupSlipIfUnusedByReservation(r)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "ลบสำเร็จ", "deleted": result.RowsAffected})
 }
 

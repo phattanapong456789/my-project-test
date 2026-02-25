@@ -40,6 +40,8 @@ type Reservation struct {
 	TableID    uint      `json:"table_id" gorm:"not null;index"`
 	ReservedAt time.Time `json:"reserved_at" gorm:"not null"` // วันที่จอง (เวลา 21:00 เสมอ)
 	Note       string    `json:"note"`
+	SlipURL    string    `json:"slip_url"`
+	BookingRef string    `json:"booking_ref" gorm:"index"`
 	Status     string    `json:"status" gorm:"default:'pending'"`
 	AdminNote  string    `json:"admin_note"`
 
@@ -74,6 +76,8 @@ type ReservationResponse struct {
 	ID         uint          `json:"id"`
 	ReservedAt time.Time     `json:"reserved_at"`
 	Note       string        `json:"note"`
+	SlipURL    string        `json:"slip_url"`
+	BookingRef string        `json:"booking_ref"`
 	Status     string        `json:"status"`
 	AdminNote  string        `json:"admin_note"`
 	User       UserResponse  `json:"user"`

@@ -179,6 +179,23 @@
             >
           </div>
         </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div v-if="selectedTableIds.length > 0" class="card">
+        <h2 class="step-title"><span class="step-num">4</span> แนบสลิปการโอนเงิน</h2>
+        <div class="form-group">
+          <label>แนบสลิป (jpg/png)</label>
+          <input type="file" accept="image/*" @change="onSlipChange" />
+        </div>
+        <div v-if="slipPreviewUrl" class="slip-preview">
+          <img :src="slipPreviewUrl" alt="slip preview" />
+          <button class="btn-secondary" type="button" @click="clearSlip">ลบสลิป</button>
+        </div>
+        <div class="slip-hint">
+          แนบสลิปเพื่อให้แอดมินตรวจสอบการชำระเงิน
+        </div>
+
         <div v-if="bookError" class="alert-error">
           <AlertTriangle :size="14" /> {{ bookError }}
         </div>
@@ -305,6 +322,8 @@ const booking = ref(false);
 const bookError = ref(null);
 const successRes = ref(null);
 const showConfirm = ref(false);
+const slipFile = ref(null);
+const slipPreviewUrl = ref("");
 const selectedTables = computed(() =>
   tables.value.filter((t) => selectedTableIds.value.includes(t.id)),
 );
@@ -463,6 +482,25 @@ async function handleBook() {
   if (selectedTableIds.value.length === 0) return;
   booking.value = true;
   bookError.value = null;
+
+  const bookingRef = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+  let slipUrl = "";
+  if (!slipFile.value) {
+    booking.value = false;
+    bookError.value = "กรุณาแนบสลิปการโอนเงินก่อนยืนยันการจอง";
+    return;
+  }
+
+  try {
+    const up = await tableApi.uploadSlip(slipFile.value);
+    slipUrl = up.data?.slip_url || "";
+  } catch (e) {
+    booking.value = false;
+    bookError.value = e.response?.data?.error || "อัปโหลดสลิปไม่สำเร็จ";
+    return;
+  }
+
   const successfulTables = [];
   const errors = [];
   for (const t of selectedTables.value) {
@@ -471,6 +509,8 @@ async function handleBook() {
         table_id: t.id,
         date: selectedDate.value,
         note: note.value,
+        slip_url: slipUrl,
+        booking_ref: bookingRef,
       });
       successfulTables.push(t);
     } catch (e) {
@@ -494,8 +534,22 @@ function resetBook() {
   successRes.value = null;
   selectedTableIds.value = [];
   note.value = "";
+  clearSlip();
   bookError.value = null;
   loadFloorPlan();
+}
+
+function onSlipChange(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  slipFile.value = file;
+  slipPreviewUrl.value = URL.createObjectURL(file);
+}
+
+function clearSlip() {
+  if (slipPreviewUrl.value) URL.revokeObjectURL(slipPreviewUrl.value);
+  slipPreviewUrl.value = "";
+  slipFile.value = null;
 }
 </script>
 
@@ -619,6 +673,26 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.slip-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.slip-preview img {
+  width: 100%;
+  max-width: 420px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.slip-hint {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 label {

@@ -92,8 +92,8 @@ const cancelling = ref(null)
 const groupedReservations = computed(() => {
   const groups = {}
   reservations.value.forEach(r => {
-    // Generate a grouping key based on reserved_at, status, and note
-    const key = `${r.reserved_at}_${r.status}_${r.note || ''}`
+    // Group by booking_ref when available (separate booking batches)
+    const key = r.booking_ref ? `ref_${r.booking_ref}` : `${r.reserved_at}_${r.status}_${r.note || ''}`
     if (!groups[key]) {
       groups[key] = {
         id: r.id, // Use the first reservation's ID as the group's unique key

@@ -113,6 +113,11 @@
               <div v-if="totalPrice(r) > 0" class="res-price">
                 <Banknote :size="12" /> <strong>ราคา : ฿{{ totalPrice(r).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</strong>
               </div>
+              <div v-if="r.slip_url" class="res-slip">
+                <button class="btn-slip" type="button" @click="openSlip(r.slip_url)">
+                  <Eye :size="12" /> ดูสลิป
+                </button>
+              </div>
               <div v-if="r.note" class="res-note">
                 <FileText :size="12" /> {{ r.note }}
               </div>
@@ -175,13 +180,24 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal ดูสลิป -->
+    <div v-if="slipModalUrl" class="modal-overlay" @click.self="closeSlip">
+      <div class="modal slip-modal">
+        <h2>สลิปการโอนเงิน</h2>
+        <img class="slip-img" :src="slipModalUrl" alt="slip" />
+        <div class="modal-actions">
+          <button class="btn-cancel" type="button" @click="closeSlip">ปิด</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { tableApi } from '../api/auth'
-import { LayoutGrid, ArrowLeft, CalendarDays, Clock, CheckCircle2, Armchair, X, Trash2, User, XCircle, Ban, FileText, MessageSquare, AlertTriangle, Banknote } from 'lucide-vue-next'
+import { LayoutGrid, ArrowLeft, CalendarDays, Clock, CheckCircle2, Armchair, X, Trash2, User, XCircle, Ban, FileText, MessageSquare, AlertTriangle, Banknote, Eye } from 'lucide-vue-next'
 
 const reservations = ref([])
 const summary = ref(null)
@@ -199,12 +215,13 @@ const actioning = ref(false)
 const actionError = ref(null)
 const selectedIds = ref([])
 const deleteConfirm = ref(false)
+const slipModalUrl = ref('')
 
 const groupedReservations = computed(() => {
   const groups = {}
   reservations.value.forEach(r => {
-    // Generate grouping key based on user_id, reserved_at, status, and note
-    const key = `${r.user.id}_${r.reserved_at}_${r.status}_${r.note || ''}`
+    // Group by booking_ref when available (separate booking batches)
+    const key = r.booking_ref ? `ref_${r.booking_ref}` : `${r.user.id}_${r.reserved_at}_${r.status}_${r.note || ''}`
     if (!groups[key]) {
       groups[key] = {
         id: r.id,
@@ -214,11 +231,13 @@ const groupedReservations = computed(() => {
         status: r.status,
         note: r.note,
         admin_note: r.admin_note,
+        slip_url: r.slip_url,
         tables: [r.table]
       }
     } else {
       groups[key].ids.push(r.id)
       groups[key].tables.push(r.table)
+      if (!groups[key].slip_url && r.slip_url) groups[key].slip_url = r.slip_url
     }
   })
   return Object.values(groups).sort((a, b) => new Date(b.reserved_at) - new Date(a.reserved_at))
@@ -270,6 +289,9 @@ async function confirmAction() {
 }
 function statusLabel(s) { return { pending: 'รอยืนยัน', approved: 'ยืนยันแล้ว', rejected: 'ปฏิเสธ', cancelled: 'ยกเลิก' }[s] || s }
 function formatDT(dt) { return new Date(dt).toLocaleString('th-TH', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }
+
+function openSlip(url) { slipModalUrl.value = url }
+function closeSlip() { slipModalUrl.value = '' }
 </script>
 
 <style scoped>
@@ -696,6 +718,40 @@ select option {
   border-radius: var(--radius-sm);
   margin-top: 5px;
   border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.res-slip {
+  margin-top: 6px;
+}
+
+.btn-slip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(201, 168, 76, 0.08);
+  color: var(--gold-light);
+  border: 1px solid rgba(201, 168, 76, 0.2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.82rem;
+  font-family: inherit;
+}
+
+.btn-slip:hover {
+  background: rgba(201, 168, 76, 0.12);
+}
+
+.slip-modal {
+  max-width: 520px;
+}
+
+.slip-img {
+  width: 100%;
+  margin-top: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
 }
 
 .res-price {

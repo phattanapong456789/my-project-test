@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"auth-app/models"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +15,38 @@ import (
 
 type ReservationHandler struct {
 	db *gorm.DB
+}
+
+func (h *ReservationHandler) UploadSlip(c *gin.Context) {
+	file, err := c.FormFile("slip")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ต้องแนบไฟล์ slip"})
+		return
+	}
+
+	ext := filepath.Ext(file.Filename)
+	if ext == "" {
+		ext = ".jpg"
+	}
+
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	name := fmt.Sprintf("%d-%x%s", time.Now().UnixNano(), b, ext)
+
+	dir := filepath.Join("uploads", "slips")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ไม่สามารถสร้างโฟลเดอร์อัปโหลด", "detail": err.Error()})
+		return
+	}
+
+	path := filepath.Join(dir, name)
+	if err := c.SaveUploadedFile(file, path); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "อัปโหลดไฟล์ไม่สำเร็จ", "detail": err.Error()})
+		return
+	}
+
+	slipURL := "/uploads/slips/" + name
+	c.JSON(http.StatusCreated, gin.H{"slip_url": slipURL})
 }
 
 func NewReservationHandler(db *gorm.DB) *ReservationHandler {
@@ -27,7 +63,7 @@ func toTableResponse(t models.Table) models.TableResponse {
 func toReservationResponse(r models.Reservation) models.ReservationResponse {
 	return models.ReservationResponse{
 		ID: r.ID, ReservedAt: r.ReservedAt,
-		Note: r.Note, Status: r.Status, AdminNote: r.AdminNote,
+		Note: r.Note, SlipURL: r.SlipURL, BookingRef: r.BookingRef, Status: r.Status, AdminNote: r.AdminNote,
 		User: toUserResponse(r.User), Table: toTableResponse(r.Table),
 		CreatedAt: r.CreatedAt,
 	}
@@ -89,6 +125,8 @@ func (h *ReservationHandler) CreateReservation(c *gin.Context) {
 		TableID uint   `json:"table_id" binding:"required"`
 		Date    string `json:"date" binding:"required"` // "2024-12-25"
 		Note    string `json:"note"`
+		SlipURL string `json:"slip_url"`
+		BookingRef string `json:"booking_ref"`
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -137,6 +175,8 @@ func (h *ReservationHandler) CreateReservation(c *gin.Context) {
 		TableID:    input.TableID,
 		ReservedAt: reservedAt,
 		Note:       input.Note,
+		SlipURL:    input.SlipURL,
+		BookingRef: input.BookingRef,
 		Status:     models.ReservationStatusPending,
 	}
 	h.db.Create(&reservation)

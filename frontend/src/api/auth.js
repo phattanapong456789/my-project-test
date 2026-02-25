@@ -43,6 +43,13 @@ export const tableApi = {
   getFloorPlan: (date) => api.get(`/tables${date ? '?date=' + date : ''}`),
 
   // User reservations
+  uploadSlip: (file) => {
+    const form = new FormData()
+    form.append('slip', file)
+    return api.post('/reservations/upload-slip', form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
   createReservation: (data) => api.post('/reservations', data),
   getMyReservations: () => api.get('/reservations'),
   cancelReservation: (id) => api.delete(`/reservations/${id}`),
