@@ -50,6 +50,7 @@ func main() {
 		api.POST("/auth/register", auth.Register)
 		api.POST("/auth/login", auth.Login)
 		api.GET("/tables", reservation.GetTables) // public: โต๊ะ + floor items + สถานะ
+		api.GET("/admin/reservations/ws", tableAdmin.ReservationsWS)
 
 		protected := api.Group("/")
 		protected.Use(middleware.AuthRequired())

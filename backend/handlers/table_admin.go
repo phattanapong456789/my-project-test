@@ -334,6 +334,7 @@ func (h *TableAdminHandler) UpdateReservationStatus(c *gin.Context) {
 	h.db.Model(&reservation).Updates(map[string]interface{}{
 		"status": input.Status, "admin_note": input.AdminNote,
 	})
+	BroadcastReservationsChanged()
 
 	if input.Status == models.ReservationStatusRejected {
 		h.cleanupSlipIfBatchProcessed(reservation)
@@ -350,6 +351,7 @@ func (h *TableAdminHandler) DeleteReservation(c *gin.Context) {
 		return
 	}
 	h.db.Delete(&reservation)
+	BroadcastReservationsChanged()
 	h.cleanupSlipIfUnusedByReservation(reservation)
 	c.JSON(http.StatusOK, gin.H{"message": "ลบการจองสำเร็จ"})
 }
@@ -370,6 +372,9 @@ func (h *TableAdminHandler) DeleteReservationsBulk(c *gin.Context) {
 	var reservations []models.Reservation
 	h.db.Find(&reservations, input.IDs)
 	result := h.db.Delete(&models.Reservation{}, input.IDs)
+	if result.RowsAffected > 0 {
+		BroadcastReservationsChanged()
+	}
 	for _, r := range reservations {
 		h.cleanupSlipIfUnusedByReservation(r)
 	}

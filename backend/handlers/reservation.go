@@ -181,6 +181,7 @@ func (h *ReservationHandler) CreateReservation(c *gin.Context) {
 	}
 	h.db.Create(&reservation)
 	h.db.Preload("User").Preload("Table").First(&reservation, reservation.ID)
+	BroadcastReservationsChanged()
 	c.JSON(http.StatusCreated, toReservationResponse(reservation))
 }
 
@@ -221,5 +222,6 @@ func (h *ReservationHandler) CancelReservation(c *gin.Context) {
 		return
 	}
 	h.db.Model(&reservation).Update("status", models.ReservationStatusCancelled)
+	BroadcastReservationsChanged()
 	c.JSON(http.StatusOK, gin.H{"message": "ยกเลิกการจองสำเร็จ"})
 }

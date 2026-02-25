@@ -195,7 +195,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { tableApi } from '../api/auth'
 import { LayoutGrid, ArrowLeft, CalendarDays, Clock, CheckCircle2, Armchair, X, Trash2, User, XCircle, Ban, FileText, MessageSquare, AlertTriangle, Banknote, Eye } from 'lucide-vue-next'
 
@@ -204,9 +204,6 @@ const summary = ref(null)
 const loading = ref(false)
 const filterDate = ref('')
 const filterStatus = ref('')
-const shownTotal = computed(() => reservations.value.length)
-const shownPending = computed(() => reservations.value.filter(r => r.status === 'pending').length)
-const shownApproved = computed(() => reservations.value.filter(r => r.status === 'approved').length)
 const activeTables = computed(() => summary.value?.tables?.active ?? 0)
 const actionTarget = ref(null)
 const actionStatus = ref('')
@@ -216,6 +213,62 @@ const actionError = ref(null)
 const selectedIds = ref([])
 const deleteConfirm = ref(false)
 const slipModalUrl = ref('')
+
+let ws = null
+let wsReconnectTimer = null
+
+function clearWSReconnectTimer() {
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer)
+    wsReconnectTimer = null
+  }
+}
+
+function scheduleWSReconnect() {
+  clearWSReconnectTimer()
+  wsReconnectTimer = setTimeout(() => {
+    connectWS()
+  }, 1500)
+}
+
+function connectWS() {
+  try {
+    if (ws) {
+      ws.close()
+      ws = null
+    }
+
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const host = window.location.host
+    const url = `${proto}://${host}/api/admin/reservations/ws?token=${encodeURIComponent(token)}`
+    ws = new WebSocket(url)
+
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data)
+        if (msg?.type === 'reservations_changed') {
+          loadSummary()
+          load()
+        }
+      } catch {
+        // ignore non-json
+      }
+    }
+
+    ws.onclose = () => {
+      ws = null
+      scheduleWSReconnect()
+    }
+    ws.onerror = () => {
+      try { ws?.close() } catch { }
+    }
+  } catch {
+    scheduleWSReconnect()
+  }
+}
 
 const groupedReservations = computed(() => {
   const groups = {}
@@ -243,6 +296,10 @@ const groupedReservations = computed(() => {
   return Object.values(groups).sort((a, b) => new Date(b.reserved_at) - new Date(a.reserved_at))
 })
 
+const shownTotal = computed(() => groupedReservations.value.length)
+const shownPending = computed(() => groupedReservations.value.filter(g => g.status === 'pending').length)
+const shownApproved = computed(() => groupedReservations.value.filter(g => g.status === 'approved').length)
+
 // Add computed property for total price
 const totalPrice = computed(() => (group) => {
   return group.tables.reduce((sum, table) => sum + (table.price || 0), 0)
@@ -265,7 +322,12 @@ function toggleGroupSelection(group) {
 }
 function deleteSelected() { if (selectedIds.value.length === 0) return; deleteConfirm.value = true }
 async function confirmDelete() { deleting.value = true; try { await tableApi.adminDeleteReservationsBulk(selectedIds.value); selectedIds.value = []; deleteConfirm.value = false; load(); loadSummary() } catch (e) { actionError.value = e.response?.data?.error || 'เกิดข้อผิดพลาด' } finally { deleting.value = false } }
-onMounted(() => { loadSummary(); load() })
+onMounted(() => { loadSummary(); load(); connectWS() })
+onBeforeUnmount(() => {
+  clearWSReconnectTimer()
+  try { ws?.close() } catch { }
+  ws = null
+})
 async function loadSummary() { try { const res = await tableApi.adminGetSummary(); summary.value = res.data } catch { } }
 async function load() { loading.value = true; selectedIds.value = []; try { const res = await tableApi.adminGetReservations(filterDate.value, filterStatus.value); reservations.value = res.data } finally { loading.value = false } }
 function clearFilter() { filterDate.value = ''; filterStatus.value = ''; load() }
